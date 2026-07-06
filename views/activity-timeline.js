@@ -293,32 +293,72 @@
   // ── Sugerencias IA ────────────────────────────────────────────────────────
 
   async function loadAISuggestions(plant, token) {
-    if (!window.AI || !window.StageCalc) return;
     const sugContainer = document.getElementById('at-ai-suggestions');
-    sugContainer.innerHTML = '<span style="color:var(--gray);font-size:12px">🤖 Cargando sugerencias...</span>';
-    sugContainer.style.display = 'block';
+    if (!sugContainer) return;
 
-    try {
-      const stages = StageCalc.calcStages(plant);
-      const stage  = StageCalc.getCurrentStage(stages);
-      const suggestions = await AI.getActivitySuggestions(token, stage);
-      if (!suggestions || suggestions.length === 0) { sugContainer.style.display = 'none'; return; }
+    // Calcular etapa actual
+    if (!window.StageCalc) return;
+    const stages = StageCalc.calcStages(plant);
+    const stage  = StageCalc.getCurrentStage(stages);
 
-      sugContainer.innerHTML = `<span style="font-size:12px;color:var(--gray);display:block;margin-bottom:6px">🤖 Sugerencias de IA para la etapa ${escHtml(stage)}:</span>` +
-        suggestions.map(s => `<button class="at-suggestion-chip" data-val="${escHtml(s)}">${escHtml(s)}</button>`).join('');
+    // Sugerencias predefinidas por etapa (siempre disponibles)
+    const defaultSuggestions = {
+      'Germinación': ['Verificar humedad', 'Controlar temperatura', 'Revisar germinación'],
+      'Vegetativo':  ['Regar', 'Fertilizar (crecimiento)', 'Revisar pH', 'LST', 'Poda apical'],
+      'Floración':   ['Regar', 'Fertilizar (floración)', 'Control de tricomas', 'Defoliación', 'Revisar humedad'],
+      'Secado':      ['Controlar humedad del secado', 'Voltear ramas', 'Revisar aroma'],
+      'Cosecha':     ['Registrar cosecha', 'Pesar producción', 'Curado']
+    };
 
-      sugContainer.querySelectorAll('.at-suggestion-chip').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const sel = document.getElementById('at-type-select');
-          // Agregar opción si no existe
-          if (![...sel.options].some(o => o.value === btn.dataset.val)) {
-            sel.add(new Option(btn.dataset.val, btn.dataset.val));
-          }
-          sel.value = btn.dataset.val;
-        });
+    const suggestions = defaultSuggestions[stage] || [];
+
+    sugContainer.innerHTML = `
+      <span style="font-size:12px;color:var(--gray);display:block;margin-bottom:6px">
+        💡 Sugerencias para etapa <strong style="color:var(--green)">${escHtml(stage)}</strong>:
+      </span>` +
+      suggestions.map(s => `<button class="at-suggestion-chip" data-val="${escHtml(s)}">${escHtml(s)}</button>`).join('');
+
+    sugContainer.style.display = 'flex';
+    sugContainer.style.flexWrap = 'wrap';
+    sugContainer.style.gap = '6px';
+
+    sugContainer.querySelectorAll('.at-suggestion-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sel = document.getElementById('at-type-select');
+        if (![...sel.options].some(o => o.value === btn.dataset.val)) {
+          sel.add(new Option(btn.dataset.val, btn.dataset.val));
+        }
+        sel.value = btn.dataset.val;
+        // Highlight el chip seleccionado
+        sugContainer.querySelectorAll('.at-suggestion-chip').forEach(b => b.style.opacity = '0.5');
+        btn.style.opacity = '1';
+        btn.style.background = 'rgba(76,175,80,0.3)';
       });
-    } catch {
-      sugContainer.style.display = 'none';
+    });
+
+    // Si hay IA disponible, enriquecer con sugerencias de Groq en segundo plano
+    if (window.AI) {
+      try {
+        const aiSuggestions = await AI.getActivitySuggestions(token, stage);
+        if (aiSuggestions && aiSuggestions.length > 0) {
+          // Agregar sugerencias de IA que no estén ya listadas
+          aiSuggestions.forEach(s => {
+            if (!suggestions.includes(s)) {
+              const chip = document.createElement('button');
+              chip.className = 'at-suggestion-chip';
+              chip.dataset.val = s;
+              chip.textContent = s;
+              chip.style.borderColor = 'rgba(76,175,80,0.5)';
+              chip.addEventListener('click', () => {
+                const sel = document.getElementById('at-type-select');
+                if (![...sel.options].some(o => o.value === s)) sel.add(new Option(s, s));
+                sel.value = s;
+              });
+              sugContainer.appendChild(chip);
+            }
+          });
+        }
+      } catch { /* IA no disponible, las sugerencias predefinidas ya están */ }
     }
   }
 
