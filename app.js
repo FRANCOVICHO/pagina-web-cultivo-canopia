@@ -403,7 +403,13 @@ function switchSection(section) {
     if (el) el.style.display = s === section ? 'block' : 'none';
   });
 
+  // Sync sidebar
   document.querySelectorAll('.sidebar-item').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.section === section);
+  });
+
+  // Sync bottom nav
+  document.querySelectorAll('.bottom-nav-item').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.section === section);
   });
 
@@ -505,8 +511,9 @@ const TIPS = [
 ];
 
 function setDailyTip() {
-  const el = document.getElementById('tip-text');
-  if (!el) return;
+  const el  = document.getElementById('tip-text');
+  const el2 = document.getElementById('tip-text-mobile');
   const idx = new Date().getDate() % TIPS.length;
-  el.textContent = TIPS[idx];
+  if (el)  el.textContent  = TIPS[idx];
+  if (el2) el2.textContent = TIPS[idx];
 }
