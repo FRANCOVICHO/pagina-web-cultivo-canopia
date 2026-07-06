@@ -4,4 +4,4 @@ const POCKETBASE_URL = 'https://jeans-statement-wave-transactions.trycloudflare.
 
 // Configuración del Cloudflare Worker (proxy hacia Groq)
 // IMPORTANTE: Actualizar WORKER_URL con la URL real del Worker tras el deploy
-const WORKER_URL = 'https://canopia-ai-worker.YOUR_SUBDOMAIN.workers.dev';
+const WORKER_URL = 'https://canopia-ai-worker.francolinaresgonzalez11.workers.dev';
