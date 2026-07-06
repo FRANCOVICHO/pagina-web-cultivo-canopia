@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mi Cultivo – Canopia</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-box">
+      <div class="login-logo">
+        <span class="logo-icon">🌿</span>
+        <span class="logo-text">CANOPIA</span>
+      </div>
+      <h2>Accedé a tu cultivo</h2>
+      <p class="login-sub">Ingresá con tu cuenta para ver tus plantas</p>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="tu@email.com" />
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="login-password" placeholder="••••••••" />
+      </div>
+      <div id="login-error" class="error-msg" style="display:none"></div>
+      <button id="login-btn" class="btn-primary btn-full">Ingresar</button>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="app" class="app" style="display:none">
+
+    <!-- Header mínimo -->
+    <header class="app-header">
+      <div class="header-brand">
+        <span class="logo-icon">🌿</span>
+        <span class="logo-text">CANOPIA</span>
+        <span class="logo-sub">MI CULTIVO</span>
+      </div>
+      <button id="logout-btn" class="btn-ghost">Salir</button>
+    </header>
+
+    <!-- Contenido principal -->
+    <main class="main-content">
+
+      <div class="page-title-row">
+        <div>
+          <h1 class="page-title">Mi cultivo</h1>
+          <p class="page-sub">Gestioná y llevá el seguimiento de tus plantas.</p>
+        </div>
+        <button id="add-plant-btn" class="btn-primary">
+          <span>+</span> Agregar planta
+        </button>
+      </div>
+
+      <!-- Grid de plantas -->
+      <div id="plants-grid" class="plants-grid">
+        <!-- Las tarjetas se generan con JS -->
+      </div>
+
+      <!-- Estado vacío -->
+      <div id="empty-state" class="empty-state" style="display:none">
+        <div class="empty-icon">🌱</div>
+        <h3>Todavía no tenés plantas registradas</h3>
+        <p>Agregá tu primera planta para empezar el seguimiento.</p>
+        <button class="btn-primary" onclick="openAddModal()">+ Agregar planta</button>
+      </div>
+
+      <!-- Recordatorios -->
+      <div id="reminders-section" class="reminders-section" style="display:none">
+        <div class="reminders-header">
+          <span>🔔 Recordatorios próximos</span>
+        </div>
+        <div id="reminders-list"></div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- MODAL AGREGAR / EDITAR PLANTA -->
+  <div id="plant-modal" class="modal-overlay" style="display:none">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 id="modal-title">Agregar planta</h2>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <form id="plant-form">
+        <input type="hidden" id="plant-id" />
+        <div class="form-group">
+          <label>Nombre de la planta *</label>
+          <input type="text" id="plant-name" placeholder="Ej: Northern Lights" required />
+        </div>
+        <div class="form-group">
+          <label>Genética / Strain *</label>
+          <input type="text" id="plant-genetics" placeholder="Ej: Indica, Sativa, Híbrida..." required />
+        </div>
+        <div class="form-group">
+          <label>Tipo de floración *</label>
+          <select id="plant-type" required>
+            <option value="">Seleccioná...</option>
+            <option value="autoflowering">Automática (Autoflowering)</option>
+            <option value="photoperiod">Fotodependiente (Photoperiod)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Ambiente</label>
+          <select id="plant-environment">
+            <option value="Interior">Interior</option>
+            <option value="Exterior">Exterior</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fecha de inicio (siembra) *</label>
+          <input type="date" id="plant-start-date" required />
+        </div>
+
+        <div class="form-section-title">Duraciones personalizadas (opcional)</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Germinación (días)</label>
+            <input type="number" id="dur-germination" placeholder="5" min="1" max="30" />
+          </div>
+          <div class="form-group">
+            <label>Vegetativo (días)</label>
+            <input type="number" id="dur-vegetative" placeholder="25" min="1" max="120" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Floración (días)</label>
+            <input type="number" id="dur-flowering" placeholder="60" min="1" max="120" />
+          </div>
+          <div class="form-group">
+            <label>Secado (días)</label>
+            <input type="number" id="dur-drying" placeholder="10" min="1" max="30" />
+          </div>
+        </div>
+
+        <div id="form-error" class="error-msg" style="display:none"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button type="submit" class="btn-primary" id="save-btn">Guardar planta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL DETALLE PLANTA -->
+  <div id="detail-modal" class="modal-overlay" style="display:none">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <h2 id="detail-plant-name">Nombre</h2>
+        <button class="modal-close" onclick="closeDetailModal()">✕</button>
+      </div>
+      <div id="detail-content"></div>
+    </div>
+  </div>
+
+  <!-- CONFIRM DELETE -->
+  <div id="confirm-modal" class="modal-overlay" style="display:none">
+    <div class="modal-box modal-box-sm">
+      <h3>¿Eliminar planta?</h3>
+      <p>Esta acción no se puede deshacer.</p>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeConfirm()">Cancelar</button>
+        <button class="btn-danger" id="confirm-delete-btn">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
