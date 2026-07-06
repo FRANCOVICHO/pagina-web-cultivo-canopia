@@ -6,13 +6,15 @@ let openMenuId = null;
 let selectedImageFile = null;
 
 // ===== DURACIONES POR DEFECTO =====
-const DEFAULT_DURATIONS = {
+// Referencia desde stage-calc.js (window.StageCalc), con fallback inline por si se carga solo.
+const DEFAULT_DURATIONS = (window.StageCalc && window.StageCalc.DEFAULT_DURATIONS) || {
   autoflowering: { germination: 5, vegetative: 25, flowering: 60, drying: 10 },
   photoperiod:   { germination: 5, vegetative: 42, flowering: 63, drying: 10 }
 };
 
 // ===== IMÁGENES POR ETAPA =====
-const STAGE_IMAGES = {
+// Referencia desde stage-calc.js (window.StageCalc), con fallback inline.
+const STAGE_IMAGES = (window.StageCalc && window.StageCalc.STAGE_IMAGES) || {
   Germinación: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&q=80',
   Vegetativo:  'https://images.unsplash.com/photo-1535185384036-28bbc8035f28?w=400&q=80',
   Floración:   'https://images.unsplash.com/photo-1586348943529-beaae6c28db9?w=400&q=80',
@@ -21,115 +23,30 @@ const STAGE_IMAGES = {
 };
 
 // ===== API POCKETBASE =====
-const API = {
-  async login(email, password) {
-    const res = await fetch(`${POCKETBASE_URL}/api/collections/users/auth-with-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identity: email, password })
-    });
-    if (!res.ok) throw new Error('Credenciales incorrectas');
-    return res.json();
-  },
-
-  async getPlants(token, userId) {
-    const res = await fetch(`${POCKETBASE_URL}/api/collections/plants/records?filter=(user="${userId}")&sort=-created`, {
-      headers: { 'Authorization': token }
-    });
-    if (!res.ok) throw new Error('Error al cargar plantas');
-    return res.json();
-  },
-
-  async createPlant(token, formData) {
-    const res = await fetch(`${POCKETBASE_URL}/api/collections/plants/records`, {
-      method: 'POST',
-      headers: { 'Authorization': token },
-      body: formData
-    });
-    if (!res.ok) throw new Error('Error al crear planta');
-    return res.json();
-  },
-
-  async updatePlant(token, id, formData) {
-    const res = await fetch(`${POCKETBASE_URL}/api/collections/plants/records/${id}`, {
-      method: 'PATCH',
-      headers: { 'Authorization': token },
-      body: formData
-    });
-    if (!res.ok) throw new Error('Error al actualizar planta');
-    return res.json();
-  },
-
-  async deletePlant(token, id) {
-    const res = await fetch(`${POCKETBASE_URL}/api/collections/plants/records/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': token }
-    });
-    if (!res.ok) throw new Error('Error al eliminar planta');
-  }
-};
+// El objeto API se define en services/api.js y se expone en window.API.
+// Este archivo depende de que services/api.js se cargue antes en index.html.
 
 // ===== CÁLCULO DE ETAPAS =====
+// Las funciones canónicas viven en services/stage-calc.js (window.StageCalc).
+// Aquí se definen como delegados para mantener compatibilidad con el resto de app.js.
 function calcStages(plant) {
-  const type = plant.type || 'autoflowering';
-  const defaults = DEFAULT_DURATIONS[type];
-  const dur = {
-    germination: parseInt(plant.dur_germination) || defaults.germination,
-    vegetative:  parseInt(plant.dur_vegetative)  || defaults.vegetative,
-    flowering:   parseInt(plant.dur_flowering)   || defaults.flowering,
-    drying:      parseInt(plant.dur_drying)      || defaults.drying
-  };
-
-  const start = new Date(plant.start_date);
-  start.setHours(0, 0, 0, 0);
-
-  const addDays = (date, days) => {
-    const d = new Date(date);
-    d.setDate(d.getDate() + days);
-    return d;
-  };
-
-  const germStart  = start;
-  const vegStart   = addDays(germStart, dur.germination);
-  const florStart  = addDays(vegStart,  dur.vegetative);
-  const dryStart   = addDays(florStart, dur.flowering);
-  const harvestDate = addDays(dryStart, dur.drying);
-
-  return { dur, germStart, vegStart, florStart, dryStart, harvestDate };
+  return window.StageCalc.calcStages(plant);
 }
 
 function getCurrentStage(stages) {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  if (now < stages.vegStart)   return 'Germinación';
-  if (now < stages.florStart)  return 'Vegetativo';
-  if (now < stages.dryStart)   return 'Floración';
-  if (now < stages.harvestDate) return 'Secado';
-  return 'Cosecha';
+  return window.StageCalc.getCurrentStage(stages);
 }
 
 function stageProgress(stages, stageName) {
-  const now = new Date(); now.setHours(0,0,0,0);
-  const map = {
-    'Germinación': { start: stages.germStart, end: stages.vegStart,  total: stages.dur.germination },
-    'Vegetativo':  { start: stages.vegStart,  end: stages.florStart, total: stages.dur.vegetative },
-    'Floración':   { start: stages.florStart, end: stages.dryStart,  total: stages.dur.flowering },
-    'Secado':      { start: stages.dryStart,  end: stages.harvestDate, total: stages.dur.drying }
-  };
-  const s = map[stageName];
-  if (!s) return { pct: 100, dayIn: 0, total: 0 };
-  const elapsed = Math.max(0, Math.floor((now - s.start) / 86400000));
-  const pct = Math.min(100, Math.round((elapsed / s.total) * 100));
-  return { pct, dayIn: elapsed + 1, total: s.total };
+  return window.StageCalc.stageProgress(stages, stageName);
 }
 
 function formatDate(date) {
-  return date.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  return window.StageCalc.formatDate(date);
 }
 
 function daysUntil(date) {
-  const now = new Date(); now.setHours(0,0,0,0);
-  return Math.ceil((date - now) / 86400000);
+  return window.StageCalc.daysUntil(date);
 }
 
 // ===== RENDER =====
@@ -293,53 +210,9 @@ function closeModal() {
 function openDetailModal(id) {
   const plant = plants.find(p => p.id === id);
   if (!plant) return;
-  const stages = calcStages(plant);
-  const currentStage = getCurrentStage(stages);
-  const now = new Date(); now.setHours(0,0,0,0);
-  const isOverdue = now >= stages.harvestDate;
-  const daysLeft = daysUntil(stages.harvestDate);
-
-  document.getElementById('detail-plant-name').textContent = plant.name;
-
-  const stagesList = [
-    { name: 'Germinación', start: stages.germStart,  dur: stages.dur.germination },
-    { name: 'Vegetativo',  start: stages.vegStart,   dur: stages.dur.vegetative },
-    { name: 'Floración',   start: stages.florStart,  dur: stages.dur.flowering },
-    { name: 'Secado',      start: stages.dryStart,   dur: stages.dur.drying }
-  ];
-
-  const stagesHTML = stagesList.map(s => `
-    <div class="detail-stage-card ${s.name === currentStage ? 'active' : ''}">
-      <div class="detail-stage-name">${s.name}</div>
-      <div class="detail-stage-date">${formatDate(s.start)}</div>
-      <div class="detail-stage-duration">${s.dur} días estimados</div>
-    </div>
-  `).join('');
-
-  const harvestStatus = isOverdue
-    ? `<div class="overdue-alert" style="text-align:center;font-size:14px">🚨 ¡Cosecha lista o urgente!</div>`
-    : `<div class="harvest-box">
-        <div class="harvest-label">Punto óptimo de cosecha</div>
-        <div class="harvest-date">${formatDate(stages.harvestDate)}</div>
-        <div class="harvest-days">${daysLeft > 0 ? `Faltan ${daysLeft} días` : 'Es hoy'}</div>
-       </div>`;
-
-  document.getElementById('detail-content').innerHTML = `
-    <div class="detail-info-row">
-      <div class="detail-info-item"><label>Genética</label><span>${escHtml(plant.genetics)}</span></div>
-      <div class="detail-info-item"><label>Tipo</label><span>${plant.type === 'autoflowering' ? 'Automática' : 'Fotodependiente'}</span></div>
-      <div class="detail-info-item"><label>Ambiente</label><span>${escHtml(plant.environment || 'Interior')}</span></div>
-      <div class="detail-info-item"><label>Inicio</label><span>${formatDate(new Date(plant.start_date))}</span></div>
-    </div>
-    ${harvestStatus}
-    <div class="detail-stages">${stagesHTML}</div>
-    <div class="modal-actions" style="margin-top:16px">
-      <button class="btn-ghost" onclick="openEditModal('${plant.id}');closeDetailModal()">✏️ Editar</button>
-      <button class="btn-danger" onclick="confirmDelete('${plant.id}');closeDetailModal()">🗑️ Eliminar</button>
-    </div>
-  `;
-
-  document.getElementById('detail-modal').style.display = 'flex';
+  if (window.PlantDetail) {
+    PlantDetail.open(plant, plants, currentUser.token, currentUser.id);
+  }
 }
 
 function closeDetailModal() {
