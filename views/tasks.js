@@ -12,6 +12,13 @@
           <button class="btn-primary btn-sm" id="tv-add-btn">+ Nueva tarea</button>
         </div>
 
+        <!-- Tareas rápidas sugeridas -->
+        <div id="tv-quick-block" class="tv-quick-block" style="display:none">
+          <div class="tv-quick-title">⚡ Tareas sugeridas — tocá para crear al instante</div>
+          <div id="tv-quick-list" class="tv-quick-list"></div>
+          <div style="border-top:1px solid var(--border);margin:12px 0"></div>
+        </div>
+
         <div id="tv-form" class="at-form" style="display:none">
           <input type="hidden" id="tv-edit-id" />
           <div class="form-row">
@@ -42,7 +49,94 @@
     `;
 
     bindEvents(plants, token, userId);
+    renderQuickTasks(plants, token, userId);
     await loadTasks(plants, token, userId);
+  }
+
+  function renderQuickTasks(plants, token, userId) {
+    if (!window.StageCalc || !plants.length) return;
+    const block = document.getElementById('tv-quick-block');
+    const list  = document.getElementById('tv-quick-list');
+    if (!block || !list) return;
+
+    const quickByStage = {
+      'Germinación': [
+        { icon: '💧', type: 'Verificar humedad',     daysAhead: 0 },
+        { icon: '🌡️', type: 'Controlar temperatura', daysAhead: 1 },
+      ],
+      'Vegetativo': [
+        { icon: '💧', type: 'Regar',                       daysAhead: 0 },
+        { icon: '🌱', type: 'Fertilizar (crecimiento)',     daysAhead: 2 },
+        { icon: '⚗️', type: 'Revisar pH',                  daysAhead: 3 },
+        { icon: '🪢', type: 'LST',                         daysAhead: 5 },
+        { icon: '✂️', type: 'Poda apical',                 daysAhead: 7 },
+      ],
+      'Floración': [
+        { icon: '💧', type: 'Regar',                            daysAhead: 0 },
+        { icon: '🌸', type: 'Fertilizar (floración)',           daysAhead: 2 },
+        { icon: '🔍', type: 'Control de tricomas',              daysAhead: 7 },
+        { icon: '🍃', type: 'Defoliación',                     daysAhead: 3 },
+        { icon: '💨', type: 'Revisar ventilación y humedad',    daysAhead: 1 },
+      ],
+      'Secado': [
+        { icon: '🌬️', type: 'Controlar humedad del secado', daysAhead: 0 },
+        { icon: '🔄', type: 'Voltear ramas',               daysAhead: 2 },
+        { icon: '✂️', type: 'Separar cogollos',            daysAhead: 5 },
+      ],
+      'Cosecha': [
+        { icon: '🌾', type: 'Registrar cosecha', daysAhead: 0 },
+        { icon: '🫙', type: 'Iniciar curado',    daysAhead: 1 },
+      ],
+    };
+
+    // Generar sugerencias para todas las plantas activas
+    const suggestions = [];
+    plants.forEach(plant => {
+      const stages = StageCalc.calcStages(plant);
+      const stage  = StageCalc.getCurrentStage(stages);
+      const items  = quickByStage[stage] || [];
+      items.forEach(item => {
+        suggestions.push({ ...item, plant, stage, scheduled_date: addDaysISO(todayISO(), item.daysAhead) });
+      });
+    });
+
+    if (!suggestions.length) return;
+    block.style.display = 'block';
+
+    list.innerHTML = suggestions.map((s, i) => `
+      <button class="tv-quick-item" data-idx="${i}">
+        <span class="tv-quick-icon">${s.icon}</span>
+        <span class="tv-quick-type">${escHtml(s.type)}</span>
+        <span class="tv-quick-plant">${escHtml(s.plant.name)}</span>
+        <span class="tv-quick-date">${s.scheduled_date}</span>
+        <span class="tv-quick-save">✓ Crear</span>
+      </button>`).join('');
+
+    list.querySelectorAll('.tv-quick-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const s = suggestions[parseInt(btn.dataset.idx)];
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.querySelector('.tv-quick-save').textContent = '⏳';
+        try {
+          await API.createTask(token, {
+            plant: s.plant.id,
+            user: userId,
+            activity_type: s.type,
+            scheduled_date: s.scheduled_date,
+            completed: false,
+            auto_generated: true
+          });
+          btn.querySelector('.tv-quick-save').textContent = '✅';
+          btn.style.borderColor = 'var(--green)';
+          await loadTasks(plants, token, userId);
+        } catch {
+          btn.disabled = false;
+          btn.style.opacity = '1';
+          btn.querySelector('.tv-quick-save').textContent = '❌';
+        }
+      });
+    });
   }
 
   async function loadTasks(plants, token, userId) {

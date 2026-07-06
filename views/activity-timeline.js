@@ -16,6 +16,13 @@
           <button class="btn-primary btn-sm" id="at-add-btn">+ Nueva actividad</button>
         </div>
 
+        <!-- Bloque de actividades rápidas sugeridas -->
+        <div id="at-quick-block" class="at-quick-block" style="display:none">
+          <div class="at-quick-title">⚡ Registrar rápido — tocá para guardar al instante</div>
+          <div id="at-quick-list" class="at-quick-list"></div>
+          <div style="border-top:1px solid var(--border);margin:12px 0"></div>
+        </div>
+
         <!-- Formulario nueva/editar actividad -->
         <div id="at-form" class="at-form" style="display:none">
           <input type="hidden" id="at-edit-id" />
@@ -23,7 +30,7 @@
             <div class="form-group">
               <label>Tipo de actividad *</label>
               <select id="at-type-select"></select>
-              <div id="at-ai-suggestions" class="at-suggestions" style="display:none"></div>
+              <div id="at-ai-suggestions" class="at-suggestions" style="display:none;margin-top:8px"></div>
             </div>
             <div class="form-group">
               <label>Fecha *</label>
@@ -60,6 +67,91 @@
     await loadCustomTypes(token, userId);
     await loadTimeline(plant, token);
     bindEvents(plant, token, userId);
+    renderQuickActivities(plant, token, userId);
+  }
+
+  // ── Actividades rápidas sugeridas ─────────────────────────────────────────
+
+  function renderQuickActivities(plant, token, userId) {
+    if (!window.StageCalc) return;
+    const stages = StageCalc.calcStages(plant);
+    const stage  = StageCalc.getCurrentStage(stages);
+    const today  = todayISO();
+
+    const quickByStage = {
+      'Germinación': [
+        { icon: '💧', type: 'Verificar humedad',      date: today },
+        { icon: '🌡️', type: 'Controlar temperatura',  date: today },
+        { icon: '👀', type: 'Revisar germinación',     date: today },
+      ],
+      'Vegetativo': [
+        { icon: '💧', type: 'Regar',                        date: today },
+        { icon: '🌱', type: 'Fertilizar (crecimiento)',      date: today },
+        { icon: '⚗️', type: 'Revisar pH',                   date: today },
+        { icon: '🪢', type: 'LST',                          date: today },
+        { icon: '✂️', type: 'Poda apical',                  date: today },
+        { icon: '🔬', type: 'Revisar raíces',               date: today },
+      ],
+      'Floración': [
+        { icon: '💧', type: 'Regar',                              date: today },
+        { icon: '🌸', type: 'Fertilizar (floración)',             date: today },
+        { icon: '🔍', type: 'Control de tricomas',                date: today },
+        { icon: '🍃', type: 'Defoliación',                       date: today },
+        { icon: '💨', type: 'Revisar ventilación y humedad',      date: today },
+        { icon: '🧪', type: 'Ajustar nutrientes',                 date: today },
+      ],
+      'Secado': [
+        { icon: '🌬️', type: 'Controlar humedad del secado',  date: today },
+        { icon: '🔄', type: 'Voltear ramas',                 date: today },
+        { icon: '👃', type: 'Revisar aroma',                 date: today },
+        { icon: '✂️', type: 'Separar cogollos',              date: today },
+      ],
+      'Cosecha': [
+        { icon: '🌾', type: 'Registrar cosecha',      date: today },
+        { icon: '⚖️', type: 'Pesar producción',       date: today },
+        { icon: '🫙', type: 'Iniciar curado',         date: today },
+      ],
+    };
+
+    const items = quickByStage[stage] || [];
+    const block = document.getElementById('at-quick-block');
+    const list  = document.getElementById('at-quick-list');
+    if (!block || !list || items.length === 0) return;
+
+    list.innerHTML = items.map((item, i) => `
+      <button class="at-quick-item" data-idx="${i}" title="Guardar '${escHtml(item.type)}' hoy">
+        <span class="at-quick-icon">${item.icon}</span>
+        <span class="at-quick-type">${escHtml(item.type)}</span>
+        <span class="at-quick-date">${item.date}</span>
+        <span class="at-quick-save">✓ Guardar</span>
+      </button>`).join('');
+
+    block.style.display = 'block';
+
+    list.querySelectorAll('.at-quick-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const item = items[parseInt(btn.dataset.idx)];
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.querySelector('.at-quick-save').textContent = '⏳';
+        try {
+          await API.createActivity(token, {
+            plant: plant.id,
+            user: userId,
+            activity_type: item.type,
+            activity_date: item.date,
+            notes: null
+          });
+          btn.querySelector('.at-quick-save').textContent = '✅';
+          btn.style.borderColor = 'var(--green)';
+          await loadTimeline(plant, token);
+        } catch {
+          btn.disabled = false;
+          btn.style.opacity = '1';
+          btn.querySelector('.at-quick-save').textContent = '❌';
+        }
+      });
+    });
   }
 
   // ── Línea de tiempo ───────────────────────────────────────────────────────
