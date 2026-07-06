@@ -284,7 +284,7 @@ document.getElementById('login-password').addEventListener('keydown', e => {
 // ===== CARGAR APP =====
 async function loadApp() {
   document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
+  document.getElementById('app').style.display = 'flex';
 
   try {
     const data = await API.getPlants(currentUser.token, currentUser.id);
@@ -293,6 +293,8 @@ async function loadApp() {
     plants = [];
   }
   renderPlants();
+  setDailyTip();
+  switchSection('cultivo');
 }
 
 // ===== FORM SUBMIT =====
@@ -394,9 +396,29 @@ document.addEventListener('keydown', e => {
   }
 })();
 
-// ===== UTILS =====
-function escHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// ===== NAVEGACIÓN ENTRE SECCIONES =====
+function switchSection(section) {
+  ['cultivo', 'estadisticas', 'tareas'].forEach(s => {
+    const el = document.getElementById(`section-${s}`);
+    if (el) el.style.display = s === section ? 'block' : 'none';
+  });
+
+  document.querySelectorAll('.sidebar-item').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.section === section);
+  });
+
+  const names = { cultivo: 'MI CULTIVO', estadisticas: 'ESTADÍSTICAS', tareas: 'TAREAS' };
+  const headerName = document.getElementById('header-section-name');
+  if (headerName) headerName.textContent = names[section] || '';
+
+  if (section === 'estadisticas') {
+    const container = document.getElementById('stats-container');
+    if (container && currentUser) StatsView.render(container, plants, currentUser.token, currentUser.id);
+  }
+  if (section === 'tareas') {
+    const container = document.getElementById('tasks-container');
+    if (container && currentUser) TasksView.render(container, plants, currentUser.token, currentUser.id);
+  }
 }
 
 // ===== DRAG & DROP IMAGEN =====
@@ -462,3 +484,29 @@ function resetDropZone() {
 
 // Inicializar drop zone
 initDropZone();
+
+// ===== UTILS =====
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== TIPS DEL DÍA =====
+const TIPS = [
+  'La constancia es clave. Pequeños cuidados, grandes resultados.',
+  'Revisá el pH del agua antes de regar. Un rango de 6.0–7.0 es ideal.',
+  'La temperatura ideal en vegetativo es 22–28°C durante el día.',
+  'En floración, reducí el nitrógeno y aumentá el fósforo y potasio.',
+  'Buena ventilación previene hongos y fortalece los tallos.',
+  'El estrés controlado puede aumentar la producción de resina.',
+  'Monitoreá los tricomas con lupa para encontrar el punto óptimo de cosecha.',
+  'Un buen sustrato bien drenado es la base de un cultivo sano.',
+  'Las plantas necesitan oscuridad total durante la noche en floración fotodependiente.',
+  'Registrar cada actividad te ayuda a mejorar en cada cultivo.',
+];
+
+function setDailyTip() {
+  const el = document.getElementById('tip-text');
+  if (!el) return;
+  const idx = new Date().getDate() % TIPS.length;
+  el.textContent = TIPS[idx];
+}
