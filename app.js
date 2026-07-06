@@ -3,6 +3,7 @@ let currentUser = null;
 let plants = [];
 let plantToDelete = null;
 let openMenuId = null;
+let selectedImageFile = null;
 
 // ===== DURACIONES POR DEFECTO =====
 const DEFAULT_DURATIONS = {
@@ -39,21 +40,21 @@ const API = {
     return res.json();
   },
 
-  async createPlant(token, data) {
+  async createPlant(token, formData) {
     const res = await fetch(`${POCKETBASE_URL}/api/collections/plants/records`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': token },
-      body: JSON.stringify(data)
+      headers: { 'Authorization': token },
+      body: formData
     });
     if (!res.ok) throw new Error('Error al crear planta');
     return res.json();
   },
 
-  async updatePlant(token, id, data) {
+  async updatePlant(token, id, formData) {
     const res = await fetch(`${POCKETBASE_URL}/api/collections/plants/records/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Authorization': token },
-      body: JSON.stringify(data)
+      headers: { 'Authorization': token },
+      body: formData
     });
     if (!res.ok) throw new Error('Error al actualizar planta');
     return res.json();
@@ -163,7 +164,9 @@ function renderPlants() {
       'Cosecha':     'stage-cosecha'
     }[stage] || 'stage-completado';
 
-    const imgUrl = STAGE_IMAGES[stage] || STAGE_IMAGES['Vegetativo'];
+    const imgUrl = plant.image
+      ? `${POCKETBASE_URL}/api/files/plants/${plant.id}/${plant.image}`
+      : STAGE_IMAGES[stage] || STAGE_IMAGES['Vegetativo'];
     const weeksOrDays = prog.total >= 14
       ? `${Math.ceil(prog.total/7)} semanas`
       : `${prog.total} días`;
@@ -251,6 +254,7 @@ function openAddModal() {
   document.getElementById('plant-form').reset();
   document.getElementById('plant-id').value = '';
   document.getElementById('form-error').style.display = 'none';
+  resetDropZone();
   document.getElementById('plant-modal').style.display = 'flex';
 }
 
@@ -270,11 +274,20 @@ function openEditModal(id) {
   document.getElementById('dur-flowering').value = plant.dur_flowering || '';
   document.getElementById('dur-drying').value = plant.dur_drying || '';
   document.getElementById('form-error').style.display = 'none';
+
+  // Mostrar imagen existente si tiene
+  resetDropZone();
+  if (plant.image) {
+    const url = `${POCKETBASE_URL}/api/files/plants/${plant.id}/${plant.image}`;
+    showImagePreview(url);
+  }
+
   document.getElementById('plant-modal').style.display = 'flex';
 }
 
 function closeModal() {
   document.getElementById('plant-modal').style.display = 'none';
+  selectedImageFile = null;
 }
 
 function openDetailModal(id) {
@@ -419,25 +432,33 @@ document.getElementById('plant-form').addEventListener('submit', async (e) => {
   errEl.style.display = 'none';
 
   const id = document.getElementById('plant-id').value;
-  const payload = {
-    user: currentUser.id,
-    name: document.getElementById('plant-name').value.trim(),
-    genetics: document.getElementById('plant-genetics').value.trim(),
-    type: document.getElementById('plant-type').value,
-    environment: document.getElementById('plant-environment').value,
-    start_date: document.getElementById('plant-start-date').value,
-    dur_germination: parseInt(document.getElementById('dur-germination').value) || null,
-    dur_vegetative:  parseInt(document.getElementById('dur-vegetative').value)  || null,
-    dur_flowering:   parseInt(document.getElementById('dur-flowering').value)   || null,
-    dur_drying:      parseInt(document.getElementById('dur-drying').value)      || null
-  };
+
+  // Usar FormData para soportar archivos
+  const formData = new FormData();
+  formData.append('user', currentUser.id);
+  formData.append('name', document.getElementById('plant-name').value.trim());
+  formData.append('genetics', document.getElementById('plant-genetics').value.trim());
+  formData.append('type', document.getElementById('plant-type').value);
+  formData.append('environment', document.getElementById('plant-environment').value);
+  formData.append('start_date', document.getElementById('plant-start-date').value);
+
+  const durG = parseInt(document.getElementById('dur-germination').value);
+  const durV = parseInt(document.getElementById('dur-vegetative').value);
+  const durF = parseInt(document.getElementById('dur-flowering').value);
+  const durD = parseInt(document.getElementById('dur-drying').value);
+  if (!isNaN(durG)) formData.append('dur_germination', durG);
+  if (!isNaN(durV)) formData.append('dur_vegetative', durV);
+  if (!isNaN(durF)) formData.append('dur_flowering', durF);
+  if (!isNaN(durD)) formData.append('dur_drying', durD);
+
+  if (selectedImageFile) formData.append('image', selectedImageFile);
 
   try {
     if (id) {
-      const updated = await API.updatePlant(currentUser.token, id, payload);
+      const updated = await API.updatePlant(currentUser.token, id, formData);
       plants = plants.map(p => p.id === id ? updated : p);
     } else {
-      const created = await API.createPlant(currentUser.token, payload);
+      const created = await API.createPlant(currentUser.token, formData);
       plants.unshift(created);
     }
     closeModal();
@@ -504,3 +525,67 @@ document.addEventListener('keydown', e => {
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ===== DRAG & DROP IMAGEN =====
+function initDropZone() {
+  const zone = document.getElementById('drop-zone');
+  const input = document.getElementById('plant-image-input');
+  const removeBtn = document.getElementById('drop-remove');
+
+  zone.addEventListener('click', () => input.click());
+
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    zone.classList.add('dragover');
+  });
+
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) handleImageFile(file);
+  });
+
+  input.addEventListener('change', () => {
+    if (input.files[0]) handleImageFile(input.files[0]);
+  });
+
+  removeBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    resetDropZone();
+  });
+}
+
+function handleImageFile(file) {
+  if (file.size > 5 * 1024 * 1024) {
+    alert('La imagen supera los 5MB. Elegí una más pequeña.');
+    return;
+  }
+  selectedImageFile = file;
+  const reader = new FileReader();
+  reader.onload = e => showImagePreview(e.target.result);
+  reader.readAsDataURL(file);
+}
+
+function showImagePreview(src) {
+  document.getElementById('drop-placeholder').style.display = 'none';
+  const preview = document.getElementById('drop-preview');
+  preview.src = src;
+  preview.style.display = 'block';
+  document.getElementById('drop-remove').style.display = 'inline-block';
+}
+
+function resetDropZone() {
+  selectedImageFile = null;
+  document.getElementById('drop-placeholder').style.display = 'flex';
+  const preview = document.getElementById('drop-preview');
+  preview.src = '';
+  preview.style.display = 'none';
+  document.getElementById('drop-remove').style.display = 'none';
+  document.getElementById('plant-image-input').value = '';
+}
+
+// Inicializar drop zone
+initDropZone();

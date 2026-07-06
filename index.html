@@ -117,6 +117,20 @@
           <input type="date" id="plant-start-date" required />
         </div>
 
+        <div class="form-group">
+          <label>Foto de la planta</label>
+          <div id="drop-zone" class="drop-zone">
+            <div id="drop-placeholder">
+              <span class="drop-icon">📷</span>
+              <span>Arrastrá una imagen o hacé click para seleccionar</span>
+              <span class="drop-hint">JPG, PNG, WEBP — máx 5MB</span>
+            </div>
+            <img id="drop-preview" src="" alt="preview" style="display:none" />
+            <button type="button" id="drop-remove" class="drop-remove" style="display:none">✕ Quitar imagen</button>
+          </div>
+          <input type="file" id="plant-image-input" accept="image/*" style="display:none" />
+        </div>
+
         <div class="form-section-title">Duraciones personalizadas (opcional)</div>
         <div class="form-row">
           <div class="form-group">
