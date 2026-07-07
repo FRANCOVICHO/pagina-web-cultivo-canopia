@@ -263,9 +263,10 @@ document.getElementById('login-btn').addEventListener('click', async () => {
 
   try {
     const data = await API.login(email, password);
-    currentUser = { token: data.token, id: data.record.id };
+    currentUser = { token: data.token, id: data.record.id, username: data.record.username || data.record.email };
     sessionStorage.setItem('pb_token', data.token);
     sessionStorage.setItem('pb_user_id', data.record.id);
+    sessionStorage.setItem('pb_username', data.record.username || data.record.email || '');
     await loadApp();
   } catch (err) {
     errEl.textContent = 'Email o contraseña incorrectos.';
@@ -391,7 +392,7 @@ document.addEventListener('keydown', e => {
   const token = sessionStorage.getItem('pb_token');
   const userId = sessionStorage.getItem('pb_user_id');
   if (token && userId) {
-    currentUser = { token, id: userId };
+    currentUser = { token, id: userId, username: sessionStorage.getItem('pb_username') || '' };
     await loadApp();
   }
 })();
@@ -491,6 +492,36 @@ function resetDropZone() {
 // Inicializar drop zone
 initDropZone();
 
+// ===== MODAL MI CUENTA =====
+function openAccountModal() {
+  const modal = document.getElementById('account-modal');
+  if (!modal) return;
+
+  // Mostrar username
+  const usernameEl = document.getElementById('account-username-display');
+  if (usernameEl && currentUser) {
+    usernameEl.textContent = currentUser.username || currentUser.id.slice(0, 8);
+  }
+
+  // Mostrar cantidad de plantas
+  const plantsEl = document.getElementById('acc-plants-count');
+  if (plantsEl) plantsEl.textContent = plants.length;
+
+  // Mostrar info de sesión
+  const sessionEl = document.getElementById('acc-session-info');
+  if (sessionEl) {
+    const now = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    sessionEl.textContent = now;
+  }
+
+  modal.style.display = 'flex';
+}
+
+function closeAccountModal() {
+  const modal = document.getElementById('account-modal');
+  if (modal) modal.style.display = 'none';
+}
+
 // ===== UTILS =====
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -508,12 +539,38 @@ const TIPS = [
   'Un buen sustrato bien drenado es la base de un cultivo sano.',
   'Las plantas necesitan oscuridad total durante la noche en floración fotodependiente.',
   'Registrar cada actividad te ayuda a mejorar en cada cultivo.',
+  'La humedad ideal en floración es 40–50% para evitar hongos.',
+  'Regá cuando los primeros 2–3 cm del sustrato estén secos.',
+  'El entrenamiento LST aumenta los puntos de floración sin estrés severo.',
+  'La defoliación estratégica mejora la penetración de luz en la canopia.',
+  'Mantené las herramientas de poda limpias y desinfectadas.',
+  'El agua de lluvia es ideal por su bajo contenido de sales.',
+  'Un buen grow log te permite repetir tus mejores resultados.',
+  'Agregá micorrizas al sustrato para mejorar la absorción de nutrientes.',
+  'La temperatura del agua de riego debe estar entre 18–22°C.',
+  'Controlá los trips y ácaros desde el inicio del cultivo.',
+  'El CO₂ extra en el espacio de cultivo puede acelerar el crecimiento.',
+  'En secado, apuntá a una humedad del 45–55% y temperatura de 18–22°C.',
+  'Lavar las raíces antes de cosechar mejora el sabor final.',
+  'El curado en frascos de vidrio potencia el aroma y suavidad.',
+  'Usá luz UVB en las últimas semanas para aumentar tricomas.',
+  'La poda apical duplica los puntos de floración principales.',
+  'Anotá el peso en seco de cada cosecha para comparar genéticas.',
+  'Rotá los cultivos para evitar agotamiento del sustrato.',
+  'Las deficiencias de magnesio se manifiestan como amarillamiento entre venas.',
+  'Un electroconductor (EC) bajo indica poca nutrición disponible.',
+  'El periodo de oscuridad continuo es vital en plantas fotodependientes.',
 ];
 
 function setDailyTip() {
+  // Usar fecha completa (año + día del año) para rotar todos los tips
+  const now   = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((now - start) / 86400000);
+  const idx = dayOfYear % TIPS.length;
+
   const el  = document.getElementById('tip-text');
   const el2 = document.getElementById('tip-text-mobile');
-  const idx = new Date().getDate() % TIPS.length;
   if (el)  el.textContent  = TIPS[idx];
   if (el2) el2.textContent = TIPS[idx];
 }
