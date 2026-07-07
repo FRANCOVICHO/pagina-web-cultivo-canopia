@@ -10,7 +10,28 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';"
 };
+
+const rateLimitMap = new Map();
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip) || { count: 0, resetAt: now + 60000 };
+  if (now > entry.resetAt) {
+    entry.count = 1;
+    entry.resetAt = now + 60000;
+  } else {
+    entry.count++;
+  }
+  rateLimitMap.set(ip, entry);
+  if (rateLimitMap.size > 10000) rateLimitMap.clear();
+  return entry.count <= 10; // Max 10 requests per minute per IP
+}
+
 
 export default {
   async fetch(request, env) {
@@ -19,6 +40,11 @@ export default {
     }
     if (request.method !== 'POST') {
       return jsonError('Método no permitido', 405);
+    }
+
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    if (!checkRateLimit(ip)) {
+      return jsonError('Demasiadas solicitudes. Esperá un minuto.', 429);
     }
 
     // 1. Validar token PocketBase
@@ -35,6 +61,11 @@ export default {
         5000
       );
       if (!verifyRes.ok) return jsonError('Token inválido o expirado', 401);
+      
+      const pbData = await verifyRes.json();
+      if (!pbData.record || pbData.record.id === undefined) {
+         return jsonError('Rol o token no autorizado', 403);
+      }
     } catch {
       return jsonError('No se pudo verificar el token', 401);
     }
@@ -60,7 +91,7 @@ export default {
 
     // 4. Otros tipos — modelo de texto
     let prompt;
-    try { prompt = buildPrompt(type, body); }
+    try { prompt = buildPrompt(type, body).slice(0, 2000); } // Límite de largo del prompt (seguridad)
     catch (e) { return jsonError(e.message, 400); }
 
     let groqData;
@@ -106,11 +137,15 @@ async function handleDiagnosis(body, groqKey) {
 
   const systemPrompt = `Sos un experto agrónomo especializado en cultivo de cannabis. Analizás fotos de plantas y detectás enfermedades, deficiencias nutricionales, plagas y problemas. Respondés en español argentino de forma clara y directa.`;
 
+  const safeGenetics = genetics ? String(genetics).slice(0, 100).replace(/[^a-zA-Z0-9 -]/g, '') : '';
+  const safeStage = stage ? String(stage).slice(0, 50).replace(/[^a-zA-Z0-9 -]/g, '') : '';
+  const safeContext = extra_context ? String(extra_context).slice(0, 500) : '';
+
   const userContent = [
     { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image_base64}` } },
     {
       type: 'text',
-      text: `Analizá esta planta de cannabis${genetics ? ` (genética: ${genetics})` : ''}${stage ? `, etapa: ${stage}` : ''}.${extra_context ? ` Info extra del cultivador: ${extra_context}` : ''}
+      text: `Analizá esta planta de cannabis${safeGenetics ? ` (genética: ${safeGenetics})` : ''}${safeStage ? `, etapa: ${safeStage}` : ''}.${safeContext ? ` Info extra del cultivador: ${safeContext}` : ''}
 
 Respondé SOLO con JSON válido (sin markdown):
 {"problema":"...","descripcion":"...","causas":["..."],"soluciones":["..."],"urgencia":"bajo|medio|alto","prevencion":"..."}`
@@ -160,17 +195,18 @@ Respondé SOLO con JSON válido (sin markdown):
 function buildPrompt(type, body) {
   switch (type) {
     case 'genetics_info': {
-      const { genetics } = body;
+      const genetics = String(body.genetics || '').slice(0, 100).replace(/[^a-zA-Z0-9 -]/g, '');
       if (!genetics) throw new Error('Campo "genetics" requerido');
       return `Provide technical data for cannabis strain "${genetics}". Respond ONLY with valid JSON: {"thc_pct":"...","cbd_pct":"...","bank":"...","dominance":"Índica|Sativa|Híbrida","height_cm":"...","notes":"..."}. Use null for unknown fields.`;
     }
     case 'stage_durations': {
-      const { genetics, flowering_type } = body;
+      const genetics = String(body.genetics || '').slice(0, 100).replace(/[^a-zA-Z0-9 -]/g, '');
+      const flowering_type = String(body.flowering_type || '').slice(0, 30);
       if (!genetics) throw new Error('Campo "genetics" requerido');
       return `For ${flowering_type || 'autoflowering'} cannabis strain "${genetics}", provide estimated grow stage durations in days. Respond ONLY with valid JSON: {"germination":5,"vegetative":25,"flowering":60,"drying":10}. Integers only.`;
     }
     case 'activity_suggestions': {
-      const { stage } = body;
+      const stage = String(body.stage || '').slice(0, 50).replace(/[^a-zA-Z0-9 -]/g, '');
       if (!stage) throw new Error('Campo "stage" requerido');
       return `Suggest 3-5 care activities for a cannabis plant in the "${stage}" stage. Respond ONLY with a JSON array of short Spanish strings. No markdown.`;
     }

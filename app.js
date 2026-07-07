@@ -399,22 +399,19 @@ document.addEventListener('keydown', e => {
 
 // ===== NAVEGACIÓN ENTRE SECCIONES =====
 function switchSection(section) {
-  ['cultivo', 'estadisticas', 'tareas'].forEach(s => {
+  ['cultivo', 'estadisticas', 'tareas', 'consulta'].forEach(s => {
     const el = document.getElementById(`section-${s}`);
     if (el) el.style.display = s === section ? 'block' : 'none';
   });
 
-  // Sync sidebar
   document.querySelectorAll('.sidebar-item').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.section === section);
   });
-
-  // Sync bottom nav
   document.querySelectorAll('.bottom-nav-item').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.section === section);
   });
 
-  const names = { cultivo: 'MI CULTIVO', estadisticas: 'ESTADÍSTICAS', tareas: 'TAREAS' };
+  const names = { cultivo: 'MI CULTIVO', estadisticas: 'ESTADÍSTICAS', tareas: 'TAREAS', consulta: 'CONSULTAR PROBLEMA' };
   const headerName = document.getElementById('header-section-name');
   if (headerName) headerName.textContent = names[section] || '';
 
@@ -425,6 +422,16 @@ function switchSection(section) {
   if (section === 'tareas') {
     const container = document.getElementById('tasks-container');
     if (container && currentUser) TasksView.render(container, plants, currentUser.token, currentUser.id);
+  }
+  if (section === 'consulta') {
+    const container = document.getElementById('consulta-container');
+    if (container && currentUser) {
+      // Crear planta ficticia para diagnóstico sin planta específica
+      const fakePlant = { id: null, genetics: null, type: null, start_date: null };
+      window._currentDiagPlant = fakePlant;
+      window._currentDiagToken = currentUser.token;
+      DiagnosisView.render(container, fakePlant, currentUser.token);
+    }
   }
 }
 
