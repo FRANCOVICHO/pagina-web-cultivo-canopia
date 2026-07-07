@@ -316,52 +316,117 @@
   }
 
   function renderResult(container, data) {
-    const urgencyColor = { alto: '#ef5350', medio: '#ffa726', bajo: '#66bb6a' }[data.urgencia] || '#888';
-    const urgencyLabel = { alto: '🔴 Alta', medio: '🟡 Media', bajo: '🟢 Baja' }[data.urgencia] || '—';
+    const urgencyMap = {
+      baja:    { color: '#66bb6a', label: '🟢 Baja',    bg: 'rgba(102,187,106,0.1)' },
+      media:   { color: '#ffa726', label: '🟡 Media',   bg: 'rgba(255,167,38,0.1)' },
+      alta:    { color: '#ef5350', label: '🟠 Alta',    bg: 'rgba(239,83,80,0.1)' },
+      critica: { color: '#e53935', label: '🔴 Crítica', bg: 'rgba(229,57,53,0.15)' },
+      // compatibilidad con respuestas antiguas
+      bajo: { color: '#66bb6a', label: '🟢 Baja', bg: 'rgba(102,187,106,0.1)' },
+      medio: { color: '#ffa726', label: '🟡 Media', bg: 'rgba(255,167,38,0.1)' },
+      alto: { color: '#ef5350', label: '🟠 Alta', bg: 'rgba(239,83,80,0.1)' },
+    };
+    const rankMap = {
+      muy_probable: { stars: '★★★★★', label: '🥇 Muy probable' },
+      posible:      { stars: '★★★☆☆', label: '🥈 Posible' },
+      poco_probable:{ stars: '★★☆☆☆', label: '🥉 Poco probable' },
+    };
 
-    // Diagnóstico diferencial
-    const diferencialHTML = data.diagnostico_diferencial?.length ? `
-      <div class="diag-section">
-        <div class="diag-section-title">📊 Diagnóstico diferencial</div>
-        ${data.diagnostico_diferencial.map(d => `
-          <div class="diag-diferencial-item">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-              <span style="font-weight:600;font-size:14px">${escHtml(d.causa)}</span>
-              <span class="diag-confianza" style="background:${d.confianza >= 70 ? 'rgba(57,231,95,0.15)' : 'rgba(255,167,38,0.15)'}">
-                ${d.confianza}% confianza
-              </span>
+    const urg = urgencyMap[data.urgencia] || urgencyMap['media'];
+    const confiabilidad = data.confiabilidad_general || 0;
+
+    // Hipótesis con evidencias y soluciones ligadas
+    const hipotesisHTML = (data.hipotesis || []).map(h => {
+      const rank = rankMap[h.ranking] || { stars: '★★★☆☆', label: h.causa };
+      const colorH = h.confianza >= 70 ? '#66bb6a' : h.confianza >= 40 ? '#ffa726' : '#888';
+      return `
+        <div class="diag-hipotesis-card" style="border-left: 3px solid ${colorH}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+            <div>
+              <div style="font-weight:700;font-size:15px">${escHtml(h.causa)}</div>
+              <div style="font-size:13px;color:${colorH}">${rank.label} · ${rank.stars}</div>
             </div>
-            <div style="font-size:12px;color:var(--gray)">${escHtml(d.razon || '')}</div>
+            <span style="font-size:12px;background:${colorH}20;color:${colorH};border:1px solid ${colorH}40;border-radius:20px;padding:3px 10px;font-weight:700">${h.confianza}%</span>
+          </div>
+          ${h.evidencia_visual?.length ? `
+          <div class="diag-evidence-block">
+            <div class="diag-evidence-title">📷 Evidencia visual</div>
+            <ul class="diag-list">${h.evidencia_visual.map(e => `<li>${escHtml(e)}</li>`).join('')}</ul>
+          </div>` : ''}
+          ${h.evidencia_textual?.length ? `
+          <div class="diag-evidence-block">
+            <div class="diag-evidence-title">📝 Info aportada por vos</div>
+            <ul class="diag-list">${h.evidencia_textual.map(e => `<li>${escHtml(e)}</li>`).join('')}</ul>
+          </div>` : ''}
+          ${h.soluciones?.length ? `
+          <div class="diag-evidence-block">
+            <div class="diag-evidence-title">✅ Soluciones para esta causa</div>
+            <ol class="diag-list">${h.soluciones.map(s => `<li>${escHtml(s)}</li>`).join('')}</ol>
+          </div>` : ''}
+        </div>`;
+    }).join('');
+
+    // Descartados
+    const descartadosHTML = (data.descartados || []).length ? `
+      <div class="diag-section">
+        <div class="diag-section-title">❌ Qué descarto</div>
+        ${data.descartados.map(d => `
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:flex-start">
+            <span style="color:#ef5350;font-weight:700;flex-shrink:0">✕</span>
+            <div>
+              <span style="font-weight:600;font-size:13px">${escHtml(d.causa)}</span>
+              <span style="color:var(--gray);font-size:12px"> — ${escHtml(d.razon)}</span>
+            </div>
           </div>`).join('')}
       </div>` : '';
+
+    // Información faltante
+    const faltanteHTML = (data.informacion_faltante || []).length ? `
+      <div class="diag-section">
+        <div class="diag-section-title">📋 Para mejorar el diagnóstico necesito</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${data.informacion_faltante.map(f => `<span class="diag-missing-chip">⬜ ${escHtml(f)}</span>`).join('')}
+        </div>
+      </div>` : '';
+
+    // Confiabilidad
+    const confColor = confiabilidad >= 75 ? '#66bb6a' : confiabilidad >= 50 ? '#ffa726' : '#ef5350';
+    const factores  = data.confiabilidad_factores || {};
+    const confHTML = `
+      <div class="diag-section">
+        <div class="diag-section-title">📊 Confiabilidad del diagnóstico</div>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="font-size:28px;font-weight:800;color:${confColor}">${confiabilidad}%</div>
+          <div style="font-size:12px;color:var(--gray);line-height:1.8">
+            ${factores.imagen !== false ? '✔ Imagen analizada' : '⚠ Sin imagen clara'}<br>
+            ${factores.sintomas_aportados ? '✔ Síntomas descriptos' : '⬜ Sin síntomas descriptos'}<br>
+            ${factores.datos_cultivo ? '✔ Datos de cultivo' : '⬜ Sin datos de cultivo'}<br>
+            ${factores.sin_ec ? '⬜ Sin medición EC' : ''}<br>
+            ${factores.sin_foto_enves ? '⬜ Sin foto del envés' : ''}
+          </div>
+        </div>
+      </div>`;
 
     container.innerHTML = `
       <div class="diag-result-card">
         <div class="diag-result-header">
-          <div class="diag-problema">${escHtml(data.problema || 'Análisis completado')}</div>
-          <span class="diag-urgencia" style="background:${urgencyColor}20;color:${urgencyColor};border:1px solid ${urgencyColor}40">
-            Urgencia ${urgencyLabel}
+          <div class="diag-problema">${escHtml(data.problema_principal || data.problema || 'Análisis completado')}</div>
+          <span class="diag-urgencia" style="background:${urg.bg};color:${urg.color};border:1px solid ${urg.color}40">
+            ${urg.label}
           </span>
         </div>
 
         <div class="diag-section">
-          <div class="diag-section-title">🔍 Descripción</div>
-          <p style="color:#ccc;font-size:14px;line-height:1.6">${escHtml(data.descripcion || '—')}</p>
+          <div class="diag-section-title">🔍 Observación general</div>
+          <p style="color:#ccc;font-size:14px;line-height:1.6">${escHtml(data.descripcion_general || data.descripcion || '—')}</p>
         </div>
 
-        ${diferencialHTML}
+        ${confHTML}
 
-        ${data.causas?.length ? `
-        <div class="diag-section">
-          <div class="diag-section-title">⚠️ Causas probables</div>
-          <ul class="diag-list">${data.causas.map(c => `<li>${escHtml(c)}</li>`).join('')}</ul>
-        </div>` : ''}
+        ${hipotesisHTML ? `<div class="diag-section"><div class="diag-section-title">🧪 Hipótesis diagnósticas</div>${hipotesisHTML}</div>` : ''}
 
-        ${data.soluciones?.length ? `
-        <div class="diag-section">
-          <div class="diag-section-title">✅ Soluciones paso a paso</div>
-          <ol class="diag-list">${data.soluciones.map(s => `<li>${escHtml(s)}</li>`).join('')}</ol>
-        </div>` : ''}
+        ${descartadosHTML}
+        ${faltanteHTML}
 
         ${data.prevencion ? `
         <div class="diag-section">

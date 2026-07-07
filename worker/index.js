@@ -55,21 +55,50 @@ async function diagnosePlant(body, groqKey) {
 
   const textBlock = {
     type: 'text',
-    text: `Analizá ${imgs.length > 1 ? `estas ${imgs.length} fotos` : 'esta foto'} de cannabis${genetics ? ` (genética: ${genetics})` : ''}${stage ? `, etapa ${stage}` : ''}.${extra_context ? `\n\nContexto del cultivador:\n${extra_context}` : ''}
+    text: `Analizá ${imgs.length > 1 ? `estas ${imgs.length} fotos` : 'esta foto'} de cannabis${genetics ? ` (genética: ${genetics})` : ''}${stage ? `, etapa ${stage}` : ''}.${extra_context ? `\n\nContexto aportado por el cultivador:\n${extra_context}` : ''}
 
-Hacé un diagnóstico diferencial. Respondé SOLO con JSON válido:
+Sos un experto agrónomo. Hacé un diagnóstico profesional completo. Respondé SOLO con JSON válido (sin markdown):
 {
-  "problema": "nombre del problema principal",
-  "descripcion": "descripción detallada de lo que observás",
-  "diagnostico_diferencial": [
-    {"causa": "causa 1", "confianza": 85, "razon": "por qué"},
-    {"causa": "causa 2", "confianza": 40, "razon": "indicios"}
+  "problema_principal": "nombre del problema más probable",
+  "descripcion_general": "descripción de lo que observás globalmente",
+  "confiabilidad_general": 85,
+  "confiabilidad_factores": {
+    "imagen": true,
+    "sintomas_aportados": true,
+    "datos_cultivo": true,
+    "sin_ec": true,
+    "sin_foto_enves": true
+  },
+  "hipotesis": [
+    {
+      "causa": "nombre de la causa",
+      "ranking": "muy_probable",
+      "confianza": 85,
+      "evidencia_visual": ["síntoma visual 1 observado en la foto", "síntoma visual 2"],
+      "evidencia_textual": ["dato aportado por el cultivador que apoya esto"],
+      "soluciones": ["paso 1 concreto", "paso 2", "paso 3"]
+    },
+    {
+      "causa": "segunda causa posible",
+      "ranking": "posible",
+      "confianza": 45,
+      "evidencia_visual": ["síntoma visual que lo sugiere"],
+      "evidencia_textual": [],
+      "soluciones": ["paso 1", "paso 2"]
+    }
   ],
-  "causas": ["resumen causa 1", "resumen causa 2"],
-  "soluciones": ["paso 1", "paso 2", "paso 3"],
-  "urgencia": "bajo|medio|alto",
-  "prevencion": "cómo evitarlo"
-}`
+  "descartados": [
+    {"causa": "enfermedad descartada", "razon": "por qué no es esto"},
+    {"causa": "otra causa descartada", "razon": "evidencia en contra"}
+  ],
+  "informacion_faltante": ["foto del envés", "medición EC", "temperatura", "humedad"],
+  "urgencia": "baja|media|alta|critica",
+  "prevencion": "cómo evitarlo en el futuro"
+}
+
+Valores de ranking permitidos: "muy_probable", "posible", "poco_probable".
+Urgencia: "baja", "media", "alta", "critica".
+Sé honesto con la confiabilidad — si la imagen es borrosa o falta info, bajá el porcentaje.`
   };
 
   let res;
@@ -91,7 +120,7 @@ Hacé un diagnóstico diferencial. Respondé SOLO con JSON válido:
   const raw = (await res.json())?.choices?.[0]?.message?.content || '';
   let parsed;
   try { const m = raw.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : raw); }
-  catch { parsed = { problema: 'Análisis completado', descripcion: raw, diagnostico_diferencial: [], causas: [], soluciones: [], urgencia: 'medio', prevencion: '' }; }
+  catch { parsed = { problema_principal: 'Análisis completado', descripcion_general: raw, hipotesis: [], descartados: [], informacion_faltante: [], urgencia: 'media', prevencion: '', confiabilidad_general: 50 }; }
 
   return ok(parsed);
 }
