@@ -55,50 +55,10 @@ async function diagnosePlant(body, groqKey) {
 
   const textBlock = {
     type: 'text',
-    text: `Analizá ${imgs.length > 1 ? `estas ${imgs.length} fotos` : 'esta foto'} de cannabis${genetics ? ` (genética: ${genetics})` : ''}${stage ? `, etapa ${stage}` : ''}.${extra_context ? `\n\nContexto aportado por el cultivador:\n${extra_context}` : ''}
+    text: `Analizá ${imgs.length > 1 ? `estas ${imgs.length} fotos` : 'esta foto'} de cannabis${genetics ? ` (genética: ${genetics})` : ''}${stage ? `, etapa ${stage}` : ''}.${extra_context ? `\n\nContexto del cultivador: ${extra_context}` : ''}
 
-Sos un experto agrónomo. Hacé un diagnóstico profesional completo. Respondé SOLO con JSON válido (sin markdown):
-{
-  "problema_principal": "nombre del problema más probable",
-  "descripcion_general": "descripción de lo que observás globalmente",
-  "confiabilidad_general": 85,
-  "confiabilidad_factores": {
-    "imagen": true,
-    "sintomas_aportados": true,
-    "datos_cultivo": true,
-    "sin_ec": true,
-    "sin_foto_enves": true
-  },
-  "hipotesis": [
-    {
-      "causa": "nombre de la causa",
-      "ranking": "muy_probable",
-      "confianza": 85,
-      "evidencia_visual": ["síntoma visual 1 observado en la foto", "síntoma visual 2"],
-      "evidencia_textual": ["dato aportado por el cultivador que apoya esto"],
-      "soluciones": ["paso 1 concreto", "paso 2", "paso 3"]
-    },
-    {
-      "causa": "segunda causa posible",
-      "ranking": "posible",
-      "confianza": 45,
-      "evidencia_visual": ["síntoma visual que lo sugiere"],
-      "evidencia_textual": [],
-      "soluciones": ["paso 1", "paso 2"]
-    }
-  ],
-  "descartados": [
-    {"causa": "enfermedad descartada", "razon": "por qué no es esto"},
-    {"causa": "otra causa descartada", "razon": "evidencia en contra"}
-  ],
-  "informacion_faltante": ["foto del envés", "medición EC", "temperatura", "humedad"],
-  "urgencia": "baja|media|alta|critica",
-  "prevencion": "cómo evitarlo en el futuro"
-}
-
-Valores de ranking permitidos: "muy_probable", "posible", "poco_probable".
-Urgencia: "baja", "media", "alta", "critica".
-Sé honesto con la confiabilidad — si la imagen es borrosa o falta info, bajá el porcentaje.`
+Respondé SOLO con JSON válido, sin markdown, sin texto extra:
+{"problema_principal":"...","descripcion_general":"...","confiabilidad_general":75,"hipotesis":[{"causa":"...","ranking":"muy_probable","confianza":80,"evidencia_visual":["..."],"evidencia_textual":["..."],"soluciones":["...","..."]},{"causa":"...","ranking":"posible","confianza":40,"evidencia_visual":["..."],"evidencia_textual":[],"soluciones":["..."]}],"descartados":[{"causa":"...","razon":"..."}],"informacion_faltante":["..."],"urgencia":"media","prevencion":"..."}`
   };
 
   let res;
@@ -120,7 +80,21 @@ Sé honesto con la confiabilidad — si la imagen es borrosa o falta info, bajá
   const raw = (await res.json())?.choices?.[0]?.message?.content || '';
   let parsed;
   try { const m = raw.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : raw); }
-  catch { parsed = { problema_principal: 'Análisis completado', descripcion_general: raw, hipotesis: [], descartados: [], informacion_faltante: [], urgencia: 'media', prevencion: '', confiabilidad_general: 50 }; }
+  catch (e) {
+    console.error('Parse error:', e.message, 'Raw text:', raw.slice(0, 500));
+    // Si el modelo respondió algo útil pero no en JSON, mostrarlo igual
+    parsed = {
+      problema_principal: 'Ver análisis del modelo',
+      descripcion_general: raw || 'El modelo no devolvió una respuesta válida.',
+      hipotesis: [],
+      descartados: [],
+      informacion_faltante: [],
+      urgencia: 'media',
+      prevencion: '',
+      confiabilidad_general: 30,
+      confiabilidad_factores: { imagen: true }
+    };
+  }
 
   return ok(parsed);
 }
