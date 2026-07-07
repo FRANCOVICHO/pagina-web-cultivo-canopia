@@ -684,3 +684,59 @@ body {
   padding: 10px 14px; background: var(--bg3);
   border-radius: var(--radius-sm); font-size: 14px;
 }
+
+/* ===== DIAGNOSIS VIEW ===== */
+.diag-ask-card {
+  background: var(--bg3);
+  border: 1px solid rgba(57,231,95,0.2);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+}
+.diag-loading {
+  text-align: center;
+  padding: 40px 20px;
+  background: var(--bg3);
+  border-radius: var(--radius);
+}
+.diag-result-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.diag-result-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.diag-problema {
+  font-size: 18px;
+  font-weight: 700;
+  flex: 1;
+}
+.diag-urgencia {
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.diag-section { margin-bottom: 16px; }
+.diag-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.diag-list {
+  padding-left: 18px;
+  color: #ccc;
+  font-size: 14px;
+  line-height: 1.8;
+}

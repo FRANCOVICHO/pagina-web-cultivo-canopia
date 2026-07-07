@@ -4,9 +4,10 @@
 // Requiere: wrangler secret put GROQ_API_KEY
 //           wrangler secret put POCKETBASE_URL
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL   = 'llama-3.3-70b-versatile';
-const TIMEOUT_MS   = 14000;
+const GROQ_API_URL    = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL      = 'llama-3.3-70b-versatile';
+const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const TIMEOUT_MS      = 20000;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
@@ -52,21 +53,32 @@ export default {
     }
 
     const { type } = body;
-    if (!['genetics_info', 'stage_durations', 'activity_suggestions'].includes(type)) {
+    if (!['genetics_info', 'stage_durations', 'activity_suggestions', 'plant_diagnosis'].includes(type)) {
       return jsonError(`Tipo de solicitud desconocido: ${type}`, 400);
     }
 
     // ── 3. Construir prompt ─────────────────────────────────────────────────
+    const groqKey = env.GROQ_API_KEY;
+    if (!groqKey) return jsonError('Configuración incompleta: GROQ_API_KEY', 500);
+
+    // Plant diagnosis usa vision model — flujo separado
+    if (type === 'plant_diagnosis') {
+      const { image_base64, stage, genetics, extra_context } = body;
+      if (!image_base64) return jsonError('Campo "image_base64" requerido', 400);
+      const systemPrompt = `Sos un experto agrónomo especializado en cultivo de cannabis. Analizás fotos de plantas y detectás enfermedades, deficiencias, plagas y problemas. Respondés en español argentino.`;
+      const userContent = [
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image_base64}` } },
+        { type: 'text', text: `Analizá esta planta${genetics ? ` (genética: ${genetics})` : ''}${stage ? `, etapa: ${stage}` : ''}.${extra_context ? ` Info extra: ${extra_context}` : ''}\nRespondé SOLO con JSON: {"problema":"...","descripcion":"...","causas":["..."],"soluciones":["..."],"urgencia":"bajo|medio|alto","prevencion":"..."}` }
+      ];
+      return await callGroqVision(groqKey, systemPrompt, userContent);
+    }
+
     let prompt;
     try {
       prompt = buildPrompt(type, body);
     } catch (e) {
       return jsonError(e.message, 400);
     }
-
-    // ── 4. Llamar a Groq ───────────────────────────────────────────────────
-    const groqKey = env.GROQ_API_KEY;
-    if (!groqKey) return jsonError('Configuración incompleta: GROQ_API_KEY', 500);
 
     let groqData;
     try {
@@ -140,7 +152,45 @@ function buildPrompt(type, body) {
         `{"germination":5,"vegetative":25,"flowering":60,"drying":10}. ` +
         `Use integers only. No markdown.`;
     }
-    case 'activity_suggestions': {
+    case 'plant_diagnosis': {
+      const { image_base64, stage, genetics, extra_context } = body;
+      if (!image_base64) throw new Error('Campo "image_base64" requerido');
+
+      const systemPrompt = `Eres un experto agrónomo especializado en cultivo de cannabis. 
+Analizás fotos de plantas y detectás enfermedades, deficiencias nutricionales, plagas y problemas de cultivo.
+Respondés siempre en español argentino de forma clara y directa.
+Si te dan contexto adicional (etapa, genética), lo usás para un mejor diagnóstico.`;
+
+      const userContent = [
+        {
+          type: 'image_url',
+          image_url: { url: `data:image/jpeg;base64,${image_base64}` }
+        },
+        {
+          type: 'text',
+          text: `Analizá esta planta de cannabis${genetics ? ` (genética: ${genetics})` : ''}${stage ? `, en etapa de ${stage}` : ''}.
+${extra_context ? `Contexto adicional del cultivador: ${extra_context}` : ''}
+
+Por favor:
+1. Identificá el problema principal (enfermedad, plaga, deficiencia, estrés, etc.)
+2. Explicá las causas más probables
+3. Recomendá soluciones concretas paso a paso
+4. Indicá el nivel de urgencia (bajo/medio/alto)
+
+Respondé con JSON en este formato exacto:
+{
+  "problema": "nombre del problema detectado",
+  "descripcion": "descripción detallada de lo que ves",
+  "causas": ["causa 1", "causa 2"],
+  "soluciones": ["solución 1", "solución 2", "solución 3"],
+  "urgencia": "bajo|medio|alto",
+  "prevencion": "cómo evitarlo en el futuro"
+}`
+        }
+      ];
+
+      return await callGroqVision(groqKey, systemPrompt, userContent);
+    }
       const { stage } = body;
       if (!stage) throw new Error('Campo "stage" requerido');
       return `Suggest 3-5 care activities for a cannabis plant in the "${stage}" stage. ` +
@@ -188,6 +238,55 @@ function normalizeResponse(type, parsed) {
     default:
       return parsed;
   }
+}
+
+async function callGroqVision(groqKey, systemPrompt, userContent) {
+  const res = await fetchWithTimeout(
+    GROQ_API_URL,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${groqKey}`,
+      },
+      body: JSON.stringify({
+        model: GROQ_VISION_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent }
+        ],
+        temperature: 0.3,
+        max_tokens: 1024,
+      }),
+    },
+    TIMEOUT_MS
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error('Groq vision error:', err);
+    return jsonError('Error en la API de visión IA', 502);
+  }
+
+  const data = await res.json();
+  const rawText = data?.choices?.[0]?.message?.content || '';
+
+  let parsed;
+  try {
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawText);
+  } catch {
+    parsed = {
+      problema: 'Análisis completado',
+      descripcion: rawText,
+      causas: [],
+      soluciones: [],
+      urgencia: 'medio',
+      prevencion: ''
+    };
+  }
+
+  return jsonOk(parsed);
 }
 
 async function fetchWithTimeout(url, options, ms) {

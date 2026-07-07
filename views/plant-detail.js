@@ -12,6 +12,7 @@
     { id: 'tareas',       label: '✅ Tareas'         },
     { id: 'genetica',     label: '🧬 Genética'       },
     { id: 'cosecha',      label: '🌾 Cosecha'        },
+    { id: 'diagnostico',  label: '🔬 Diagnóstico'    },
   ];
 
   function open(plant, allPlants, token, userId) {
@@ -81,6 +82,11 @@
         StatsView.renderHarvestForm(content, plant, token, userId, () => {
           content.innerHTML = '<div style="text-align:center;padding:40px"><span style="font-size:48px">🌾</span><p style="margin-top:12px;color:var(--green)">¡Cosecha registrada!</p></div>';
         });
+        break;
+      case 'diagnostico':
+        window._currentDiagPlant = plant;
+        window._currentDiagToken = token;
+        await DiagnosisView.render(content, plant, token);
         break;
     }
   }
