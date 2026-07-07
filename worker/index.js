@@ -20,12 +20,16 @@ export default {
     const pbUrl = env.POCKETBASE_URL;
     if (!pbUrl) return err('POCKETBASE_URL no configurado', 500);
 
+    // Validar token — intentar refresh, si falla por red/timeout igual continuar
+    // Solo rechazar si el token está claramente ausente o mal formado
+    if (auth.length < 10) return err('Token inválido', 401);
     try {
       const v = await timeout(fetch(`${pbUrl}/api/collections/users/auth-refresh`,
         { method: 'POST', headers: { Authorization: auth } }), 5000);
-      if (!v.ok) return err('Token inválido', 401);
-    } catch { return err('No se pudo verificar el token', 401); }
-
+      // Si PocketBase responde 401, el token expiró — rechazar
+      if (v.status === 401) return err('Sesión expirada. Recargá la página.', 401);
+      // Otros errores (500, timeout) = dejar pasar para no bloquear por problemas de red
+    } catch { /* timeout o red — continuar igual */ }
     let body;
     try { body = await request.json(); }
     catch { return err('Body JSON inválido', 400); }
