@@ -1,15 +1,50 @@
-// views/diagnosis.js
-// Diagnóstico de enfermedades/problemas de planta via IA con visión
-// Flujo: foto → ¿querés preguntas? → (opcional) preguntas → diagnóstico
-// Expone window.DiagnosisView
-
+// views/diagnosis.js — Diagnóstico de problemas de planta con IA visual
+// Mejoras: preguntas detalladas, múltiples fotos, diagnóstico diferencial
 (function () {
 
   const PREGUNTAS = [
-    { id: 'riego',    label: '¿Cuándo la regaste por última vez?',         placeholder: 'Ej: Hace 2 días' },
-    { id: 'nutrientes', label: '¿La estás fertilizando actualmente?',     placeholder: 'Ej: Sí, cada 3 días con...' },
-    { id: 'ambiente', label: '¿Temperatura y humedad aproximada?',        placeholder: 'Ej: 24°C, 55% humedad' },
-    { id: 'sintomas', label: '¿Desde cuándo notás el problema?',          placeholder: 'Ej: Hace 3 días' },
+    {
+      id: 'zona',
+      label: '¿Qué partes están afectadas?',
+      tipo: 'multicheck',
+      opciones: ['Hojas bajas', 'Hojas altas', 'Hojas del medio', 'Toda la planta', 'Tallos', 'Cogollos', 'Raíces']
+    },
+    {
+      id: 'sintomas',
+      label: '¿Cómo se ven las hojas afectadas?',
+      tipo: 'multicheck',
+      opciones: ['Amarillas', 'Marrones/secas', 'Con manchas', 'Rizadas hacia arriba', 'Rizadas hacia abajo', 'Puntos blancos/negros', 'Pérdida de color entre venas', 'Brillantes o pegajosas', 'Caídas']
+    },
+    {
+      id: 'riego',
+      label: '¿Cuándo la regaste y con qué frecuencia?',
+      tipo: 'text',
+      placeholder: 'Ej: Hace 2 días, cada 3 días'
+    },
+    {
+      id: 'ph',
+      label: '¿pH del agua de riego?',
+      tipo: 'text',
+      placeholder: 'Ej: 6.5 (o "no lo mido")'
+    },
+    {
+      id: 'nutrientes',
+      label: '¿Usás fertilizantes? ¿Cuáles y con qué frecuencia?',
+      tipo: 'text',
+      placeholder: 'Ej: Biobizz Grow, cada riego'
+    },
+    {
+      id: 'ambiente',
+      label: '¿Temperatura y humedad del espacio de cultivo?',
+      tipo: 'text',
+      placeholder: 'Ej: 24°C, 55% HR'
+    },
+    {
+      id: 'desde_cuando',
+      label: '¿Desde cuándo notás el problema? ¿Avanza rápido?',
+      tipo: 'text',
+      placeholder: 'Ej: Hace 3 días, avanza rápido'
+    },
   ];
 
   async function render(container, plant, token) {
@@ -19,35 +54,46 @@
           <h3 class="section-title">🔬 Diagnóstico por IA</h3>
         </div>
         <p style="color:var(--gray);font-size:14px;margin-bottom:20px">
-          Sacá una foto del problema de tu planta y la IA lo analiza al instante.
+          Subí hasta 3 fotos del problema y la IA hace un diagnóstico diferencial con confianza por cada causa probable.
         </p>
 
-        <!-- Paso 1: subir foto -->
+        <!-- Paso 1: subir fotos (hasta 3) -->
         <div id="diag-step-1">
-          <div id="diag-drop-zone" class="drop-zone" style="margin-bottom:16px">
-            <div id="diag-drop-placeholder">
-              <span class="drop-icon">📸</span>
-              <span>Subí o arrastrá una foto de tu planta</span>
-              <span class="drop-hint">JPEG, PNG, WebP — máx 10 MB</span>
-            </div>
-            <img id="diag-preview" src="" alt="" style="display:none;max-height:220px;object-fit:contain;border-radius:8px;width:100%" />
+          <div style="font-weight:600;font-size:13px;color:var(--green);margin-bottom:10px">
+            📸 Fotos (podés subir hasta 3 — cuantas más, mejor diagnóstico)
           </div>
-          <input type="file" id="diag-file-input" accept="image/jpeg,image/png,image/webp" capture="environment" style="display:none" />
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <button class="btn-green" id="diag-upload-btn">📷 Seleccionar foto</button>
-            <button class="btn-green" id="diag-camera-btn">📱 Usar cámara</button>
+          <div id="diag-photos-grid" class="diag-photos-grid">
+            <div class="diag-photo-slot" id="diag-slot-0">
+              <div class="diag-slot-placeholder">+ Foto 1<br><span style="font-size:11px;color:var(--gray2)">Principal</span></div>
+              <img class="diag-slot-img" style="display:none" />
+              <button class="diag-slot-remove" style="display:none">✕</button>
+            </div>
+            <div class="diag-photo-slot" id="diag-slot-1">
+              <div class="diag-slot-placeholder">+ Foto 2<br><span style="font-size:11px;color:var(--gray2)">Acercamiento</span></div>
+              <img class="diag-slot-img" style="display:none" />
+              <button class="diag-slot-remove" style="display:none">✕</button>
+            </div>
+            <div class="diag-photo-slot" id="diag-slot-2">
+              <div class="diag-slot-placeholder">+ Foto 3<br><span style="font-size:11px;color:var(--gray2)">Planta entera</span></div>
+              <img class="diag-slot-img" style="display:none" />
+              <button class="diag-slot-remove" style="display:none">✕</button>
+            </div>
+          </div>
+          <input type="file" id="diag-file-input" accept="image/jpeg,image/png,image/webp" style="display:none" />
+          <div id="diag-step1-error" class="error-msg" style="display:none;margin-top:10px"></div>
+          <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn-green btn-sm" id="diag-camera-btn">📱 Usar cámara</button>
           </div>
           <input type="file" id="diag-camera-input" accept="image/*" capture="environment" style="display:none" />
-          <div id="diag-step1-error" class="error-msg" style="display:none;margin-top:10px"></div>
         </div>
 
-        <!-- Paso 2: ¿querés que la IA haga preguntas? -->
+        <!-- Paso 2: ¿preguntas? -->
         <div id="diag-step-2" style="display:none;margin-top:20px">
           <div class="diag-ask-card">
             <div style="font-size:22px;margin-bottom:8px">🤖</div>
-            <div style="font-weight:700;margin-bottom:6px">¿Querés que te haga unas preguntas?</div>
+            <div style="font-weight:700;margin-bottom:6px">¿Te puedo hacer unas preguntas?</div>
             <div style="color:var(--gray);font-size:13px;margin-bottom:16px">
-              Con más contexto el diagnóstico es más preciso. ¿Te molesta responder 4 preguntas rápidas?
+              Con más contexto el diagnóstico es más preciso. Son 7 preguntas rápidas.
             </div>
             <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
               <button class="btn-green" id="diag-yes-questions">Sí, preguntame</button>
@@ -58,13 +104,9 @@
 
         <!-- Paso 3: preguntas -->
         <div id="diag-step-3" style="display:none;margin-top:20px">
-          <div style="font-weight:600;margin-bottom:14px;color:var(--green)">🌿 Unas preguntas rápidas:</div>
-          ${PREGUNTAS.map(q => `
-            <div class="form-group">
-              <label>${q.label}</label>
-              <input type="text" id="diag-q-${q.id}" placeholder="${q.placeholder}" />
-            </div>`).join('')}
-          <div style="display:flex;gap:10px;margin-top:6px">
+          <div style="font-weight:600;margin-bottom:14px;color:var(--green)">🌿 Contame más sobre el problema:</div>
+          <div id="diag-questions-container"></div>
+          <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
             <button class="btn-green" id="diag-submit-questions">Analizar ahora →</button>
             <button class="btn-ghost" id="diag-skip-questions">Saltar y analizar</button>
           </div>
@@ -75,91 +117,173 @@
       </div>
     `;
 
-    let selectedFile = null;
+    const selectedFiles = [null, null, null];
+    let activeSlot = 0;
 
-    const dropZone    = document.getElementById('diag-drop-zone');
-    const fileInput   = document.getElementById('diag-file-input');
-    const cameraInput = document.getElementById('diag-camera-input');
-    const uploadBtn   = document.getElementById('diag-upload-btn');
-    const cameraBtn   = document.getElementById('diag-camera-btn');
-    const errEl       = document.getElementById('diag-step1-error');
-
-    // ── File handling ────────────────────────────────────────────────────────
-    function handleFile(file) {
-      errEl.style.display = 'none';
-      if (!['image/jpeg','image/png','image/webp'].includes(file.type)) {
-        errEl.textContent = 'Formato no soportado. Usá JPEG, PNG o WebP.';
-        errEl.style.display = 'block'; return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        errEl.textContent = 'La imagen supera los 10 MB.';
-        errEl.style.display = 'block'; return;
-      }
-      selectedFile = file;
-      const reader = new FileReader();
-      reader.onload = e => {
-        document.getElementById('diag-drop-placeholder').style.display = 'none';
-        const prev = document.getElementById('diag-preview');
-        prev.src = e.target.result; prev.style.display = 'block';
-        document.getElementById('diag-step-2').style.display = 'block';
-      };
-      reader.readAsDataURL(file);
+    // ── Slots de fotos ──────────────────────────────────────────────────────
+    for (let i = 0; i < 3; i++) {
+      const slot = document.getElementById(`diag-slot-${i}`);
+      slot.addEventListener('click', (e) => {
+        if (e.target.classList.contains('diag-slot-remove')) return;
+        activeSlot = i;
+        document.getElementById('diag-file-input').click();
+      });
+      slot.querySelector('.diag-slot-remove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectedFiles[i] = null;
+        slot.querySelector('.diag-slot-img').style.display = 'none';
+        slot.querySelector('.diag-slot-img').src = '';
+        slot.querySelector('.diag-slot-remove').style.display = 'none';
+        slot.querySelector('.diag-slot-placeholder').style.display = 'flex';
+        checkShowStep2(selectedFiles);
+      });
     }
 
-    uploadBtn.addEventListener('click', () => fileInput.click());
-    cameraBtn.addEventListener('click', () => cameraInput.click());
-    fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
-    cameraInput.addEventListener('change', () => { if (cameraInput.files[0]) handleFile(cameraInput.files[0]); });
-    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-    dropZone.addEventListener('drop', e => {
-      e.preventDefault(); dropZone.classList.remove('dragover');
-      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    document.getElementById('diag-camera-btn').addEventListener('click', () => {
+      activeSlot = selectedFiles.findIndex(f => f === null);
+      if (activeSlot === -1) activeSlot = 0;
+      document.getElementById('diag-camera-input').click();
     });
 
-    // ── Paso 2: botones ──────────────────────────────────────────────────────
+    document.getElementById('diag-file-input').addEventListener('change', e => {
+      if (e.target.files[0]) handleFile(e.target.files[0], activeSlot, selectedFiles);
+    });
+    document.getElementById('diag-camera-input').addEventListener('change', e => {
+      if (e.target.files[0]) handleFile(e.target.files[0], activeSlot, selectedFiles);
+    });
+
+    // ── Paso 2 ───────────────────────────────────────────────────────────────
     document.getElementById('diag-yes-questions').addEventListener('click', () => {
       document.getElementById('diag-step-2').style.display = 'none';
+      renderQuestions();
       document.getElementById('diag-step-3').style.display = 'block';
     });
-
     document.getElementById('diag-no-questions').addEventListener('click', () => {
       document.getElementById('diag-step-2').style.display = 'none';
-      runDiagnosis(plant, token, selectedFile, null);
+      runDiagnosis(plant, token, selectedFiles, null);
     });
 
-    // ── Paso 3: enviar preguntas ─────────────────────────────────────────────
+    // ── Paso 3 ───────────────────────────────────────────────────────────────
     document.getElementById('diag-submit-questions').addEventListener('click', () => {
-      const context = PREGUNTAS.map(q => {
-        const val = document.getElementById(`diag-q-${q.id}`)?.value.trim();
-        return val ? `${q.label}: ${val}` : null;
-      }).filter(Boolean).join(' | ');
+      const ctx = collectContext();
       document.getElementById('diag-step-3').style.display = 'none';
-      runDiagnosis(plant, token, selectedFile, context || null);
+      runDiagnosis(plant, token, selectedFiles, ctx);
     });
-
     document.getElementById('diag-skip-questions').addEventListener('click', () => {
       document.getElementById('diag-step-3').style.display = 'none';
-      runDiagnosis(plant, token, selectedFile, null);
+      runDiagnosis(plant, token, selectedFiles, null);
     });
   }
 
-  // ── Ejecutar diagnóstico ──────────────────────────────────────────────────
+  // ── Manejo de archivos ────────────────────────────────────────────────────
 
-  async function runDiagnosis(plant, token, file, extraContext) {
+  function handleFile(file, slotIdx, selectedFiles) {
+    const errEl = document.getElementById('diag-step1-error');
+    errEl.style.display = 'none';
+    if (!['image/jpeg','image/png','image/webp'].includes(file.type)) {
+      errEl.textContent = 'Formato no soportado. Usá JPEG, PNG o WebP.';
+      errEl.style.display = 'block'; return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      errEl.textContent = 'La imagen supera los 10 MB.';
+      errEl.style.display = 'block'; return;
+    }
+    selectedFiles[slotIdx] = file;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const slot = document.getElementById(`diag-slot-${slotIdx}`);
+      slot.querySelector('.diag-slot-placeholder').style.display = 'none';
+      const img = slot.querySelector('.diag-slot-img');
+      img.src = e.target.result; img.style.display = 'block';
+      slot.querySelector('.diag-slot-remove').style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
+    checkShowStep2(selectedFiles);
+  }
+
+  function checkShowStep2(selectedFiles) {
+    const hasAny = selectedFiles.some(f => f !== null);
+    document.getElementById('diag-step-2').style.display = hasAny ? 'block' : 'none';
+  }
+
+  // ── Preguntas dinámicas ───────────────────────────────────────────────────
+
+  function renderQuestions() {
+    const container = document.getElementById('diag-questions-container');
+    container.innerHTML = PREGUNTAS.map(q => {
+      if (q.tipo === 'multicheck') {
+        return `
+          <div class="form-group">
+            <label>${q.label}</label>
+            <div class="diag-multicheck" id="mc-${q.id}">
+              ${q.opciones.map(o => `
+                <button type="button" class="diag-check-chip" data-val="${escHtml(o)}">${escHtml(o)}</button>
+              `).join('')}
+            </div>
+          </div>`;
+      }
+      if (q.tipo === 'select') {
+        return `
+          <div class="form-group">
+            <label>${q.label}</label>
+            <select id="diag-q-${q.id}">
+              <option value="">— Seleccioná —</option>
+              ${q.opciones.map(o => `<option value="${escHtml(o)}">${escHtml(o)}</option>`).join('')}
+            </select>
+          </div>`;
+      }
+      return `
+        <div class="form-group">
+          <label>${q.label}</label>
+          <input type="text" id="diag-q-${q.id}" placeholder="${q.placeholder || ''}" />
+        </div>`;
+    }).join('');
+
+    // Toggle chips
+    container.querySelectorAll('.diag-check-chip').forEach(btn => {
+      btn.addEventListener('click', () => btn.classList.toggle('selected'));
+    });
+  }
+
+  function collectContext() {
+    const parts = [];
+    PREGUNTAS.forEach(q => {
+      if (q.tipo === 'multicheck') {
+        const mc = document.getElementById(`mc-${q.id}`);
+        if (!mc) return;
+        const selected = [...mc.querySelectorAll('.diag-check-chip.selected')].map(b => b.dataset.val);
+        if (selected.length) parts.push(`${q.label}: ${selected.join(', ')}`);
+      } else {
+        const el = document.getElementById(`diag-q-${q.id}`);
+        if (el && el.value.trim()) parts.push(`${q.label}: ${el.value.trim()}`);
+      }
+    });
+    return parts.length ? parts.join(' | ') : null;
+  }
+
+  // ── Diagnóstico ───────────────────────────────────────────────────────────
+
+  async function runDiagnosis(plant, token, selectedFiles, extraContext) {
     const resultEl = document.getElementById('diag-result');
     resultEl.style.display = 'block';
+    const photoCount = selectedFiles.filter(f => f !== null).length;
     resultEl.innerHTML = `
       <div class="diag-loading">
         <div style="font-size:32px;margin-bottom:12px">🔬</div>
-        <div style="font-weight:600;margin-bottom:6px">Analizando tu planta...</div>
-        <div style="color:var(--gray);font-size:13px">La IA está examinando la imagen. Esto puede tardar hasta 20 segundos.</div>
+        <div style="font-weight:600;margin-bottom:6px">Analizando ${photoCount} foto${photoCount > 1 ? 's' : ''}...</div>
+        <div style="color:var(--gray);font-size:13px">La IA está examinando las imágenes. Puede tardar hasta 20 segundos.</div>
       </div>`;
 
-    // Convertir imagen a base64
-    const base64 = await fileToBase64(file);
-    // Sacar el prefijo "data:image/...;base64,"
-    const base64Data = base64.split(',')[1];
+    // Convertir todas las fotos a base64
+    const base64s = await Promise.all(
+      selectedFiles.map(f => f ? fileToBase64(f).then(b => b.split(',')[1]) : null)
+    );
+    const validBase64s = base64s.filter(b => b !== null);
+
+    if (!validBase64s.length) {
+      resultEl.innerHTML = '<div class="error-msg">No hay fotos seleccionadas.</div>';
+      return;
+    }
 
     const stages = window.StageCalc ? window.StageCalc.calcStages(plant) : null;
     const stage  = stages ? window.StageCalc.getCurrentStage(stages) : null;
@@ -170,12 +294,13 @@
         headers: { 'Content-Type': 'application/json', 'Authorization': token },
         body: JSON.stringify({
           type: 'plant_diagnosis',
-          image_base64: base64Data,
+          images_base64: validBase64s,
+          image_base64: validBase64s[0], // compatibilidad
           genetics: plant.genetics || null,
           stage: stage || null,
           extra_context: extraContext
         }),
-        signal: AbortSignal.timeout(25000)
+        signal: AbortSignal.timeout(30000)
       });
 
       const data = await res.json();
@@ -194,6 +319,22 @@
     const urgencyColor = { alto: '#ef5350', medio: '#ffa726', bajo: '#66bb6a' }[data.urgencia] || '#888';
     const urgencyLabel = { alto: '🔴 Alta', medio: '🟡 Media', bajo: '🟢 Baja' }[data.urgencia] || '—';
 
+    // Diagnóstico diferencial
+    const diferencialHTML = data.diagnostico_diferencial?.length ? `
+      <div class="diag-section">
+        <div class="diag-section-title">📊 Diagnóstico diferencial</div>
+        ${data.diagnostico_diferencial.map(d => `
+          <div class="diag-diferencial-item">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <span style="font-weight:600;font-size:14px">${escHtml(d.causa)}</span>
+              <span class="diag-confianza" style="background:${d.confianza >= 70 ? 'rgba(57,231,95,0.15)' : 'rgba(255,167,38,0.15)'}">
+                ${d.confianza}% confianza
+              </span>
+            </div>
+            <div style="font-size:12px;color:var(--gray)">${escHtml(d.razon || '')}</div>
+          </div>`).join('')}
+      </div>` : '';
+
     container.innerHTML = `
       <div class="diag-result-card">
         <div class="diag-result-header">
@@ -208,29 +349,27 @@
           <p style="color:#ccc;font-size:14px;line-height:1.6">${escHtml(data.descripcion || '—')}</p>
         </div>
 
+        ${diferencialHTML}
+
         ${data.causas?.length ? `
         <div class="diag-section">
           <div class="diag-section-title">⚠️ Causas probables</div>
-          <ul class="diag-list">
-            ${data.causas.map(c => `<li>${escHtml(c)}</li>`).join('')}
-          </ul>
+          <ul class="diag-list">${data.causas.map(c => `<li>${escHtml(c)}</li>`).join('')}</ul>
         </div>` : ''}
 
         ${data.soluciones?.length ? `
         <div class="diag-section">
-          <div class="diag-section-title">✅ Soluciones recomendadas</div>
-          <ol class="diag-list">
-            ${data.soluciones.map(s => `<li>${escHtml(s)}</li>`).join('')}
-          </ol>
+          <div class="diag-section-title">✅ Soluciones paso a paso</div>
+          <ol class="diag-list">${data.soluciones.map(s => `<li>${escHtml(s)}</li>`).join('')}</ol>
         </div>` : ''}
 
         ${data.prevencion ? `
         <div class="diag-section">
-          <div class="diag-section-title">🛡️ Prevención</div>
+          <div class="diag-section-title">🛡️ Prevención futura</div>
           <p style="color:#ccc;font-size:14px;line-height:1.6">${escHtml(data.prevencion)}</p>
         </div>` : ''}
 
-        <button class="btn-ghost" style="margin-top:16px;width:100%" onclick="window.DiagnosisView._reset()">
+        <button class="btn-ghost" style="margin-top:16px;width:100%" onclick="window._diagReset()">
           🔄 Analizar otra foto
         </button>
       </div>`;
@@ -251,14 +390,11 @@
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  window.DiagnosisView = {
-    render,
-    _reset: () => {
-      // Recarga la vista — el caller debe llamar render() de nuevo
-      const container = document.querySelector('.diag-view')?.parentElement;
-      if (container && window._currentDiagPlant && window._currentDiagToken) {
-        render(container, window._currentDiagPlant, window._currentDiagToken);
-      }
+  window.DiagnosisView = { render };
+  window._diagReset = () => {
+    const c = document.getElementById('consulta-container') || document.querySelector('.diag-view')?.parentElement;
+    if (c && window._currentDiagPlant && window._currentDiagToken) {
+      DiagnosisView.render(c, window._currentDiagPlant, window._currentDiagToken);
     }
   };
 

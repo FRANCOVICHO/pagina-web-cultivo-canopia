@@ -740,3 +740,71 @@ body {
   font-size: 14px;
   line-height: 1.8;
 }
+
+/* ===== DIAGNOSIS PHOTOS GRID ===== */
+.diag-photos-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.diag-photo-slot {
+  aspect-ratio: 1;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg3);
+  transition: border-color var(--transition);
+}
+.diag-photo-slot:hover { border-color: var(--green); }
+.diag-slot-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: var(--gray);
+  font-size: 13px;
+  font-weight: 600;
+  gap: 4px;
+  pointer-events: none;
+}
+.diag-slot-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.diag-slot-remove {
+  position: absolute; top: 4px; right: 4px;
+  background: rgba(0,0,0,0.7); border: none; color: #fff;
+  border-radius: 50%; width: 22px; height: 22px;
+  font-size: 11px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ===== MULTICHECK CHIPS ===== */
+.diag-multicheck {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;
+}
+.diag-check-chip {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 20px; padding: 5px 13px; font-size: 13px;
+  color: var(--gray); cursor: pointer; font-family: inherit;
+  transition: all var(--transition);
+}
+.diag-check-chip:hover { border-color: var(--green); color: var(--white); }
+.diag-check-chip.selected { background: var(--green-dim); border-color: var(--green); color: var(--green); font-weight: 600; }
+
+/* ===== DIFERENCIAL ===== */
+.diag-diferencial-item {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px;
+}
+.diag-confianza {
+  font-size: 12px; font-weight: 700; border-radius: 20px;
+  padding: 3px 10px; flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .diag-photos-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+}
