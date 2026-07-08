@@ -438,6 +438,118 @@
           🔄 Analizar otra foto
         </button>
       </div>`;
+
+    // Agregar chat de seguimiento debajo del resultado
+    setTimeout(() => renderChat(container, data, plant, token), 100);
+  }
+
+  // ── Chat de seguimiento ───────────────────────────────────────────────────
+
+  function renderChat(resultContainer, diagData, plant, token) {
+    const chatEl = document.createElement('div');
+    chatEl.className = 'diag-chat';
+    chatEl.innerHTML = `
+      <div class="diag-chat-header">
+        <span>💬 Seguí consultando con la IA</span>
+        <span style="font-size:12px;color:var(--gray)">Tiene contexto del diagnóstico</span>
+      </div>
+      <div id="diag-chat-messages" class="diag-chat-messages"></div>
+      <div class="diag-chat-input-row">
+        <input type="text" id="diag-chat-input" placeholder="Preguntá algo... ej: ¿cuánto tarda en recuperarse?" />
+        <button class="btn-green btn-sm" id="diag-chat-send">Enviar</button>
+      </div>
+    `;
+    resultContainer.appendChild(chatEl);
+
+    const chatHistory = [];
+    const diagContext = buildDiagContext(diagData, plant);
+
+    // Sugerencias rápidas
+    const suggestions = [
+      '¿Cuánto tarda en recuperarse?',
+      '¿Qué producto compro?',
+      '¿Puedo seguir fertilizando?',
+      '¿Es urgente actuar hoy?',
+    ];
+    const sugsEl = document.createElement('div');
+    sugsEl.className = 'diag-chat-suggestions';
+    sugsEl.innerHTML = suggestions.map(s =>
+      `<button class="at-suggestion-chip diag-sug-btn">${escHtml(s)}</button>`
+    ).join('');
+    chatEl.querySelector('.diag-chat-header').insertAdjacentElement('afterend', sugsEl);
+
+    sugsEl.querySelectorAll('.diag-sug-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('diag-chat-input').value = btn.textContent;
+        sendMessage();
+      });
+    });
+
+    document.getElementById('diag-chat-send').addEventListener('click', sendMessage);
+    document.getElementById('diag-chat-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    async function sendMessage() {
+      const input = document.getElementById('diag-chat-input');
+      const msg = input.value.trim();
+      if (!msg) return;
+      input.value = '';
+      sugsEl.style.display = 'none';
+
+      appendMessage('user', msg);
+      chatHistory.push({ role: 'user', content: msg });
+
+      const loadingId = appendMessage('assistant', '⏳ Pensando...');
+
+      try {
+        const res = await fetch(`${WORKER_URL}/api/ai`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': token },
+          body: JSON.stringify({
+            type: 'chat_followup',
+            messages: chatHistory,
+            diagnosis_context: diagContext,
+            plant_context: plant ? `Genética: ${plant.genetics || '—'}, Etapa: ${window.StageCalc ? window.StageCalc.getCurrentStage(window.StageCalc.calcStages(plant)) : '—'}` : null
+          }),
+          signal: AbortSignal.timeout(20000)
+        });
+        const data = await res.json();
+        const reply = data.reply || 'Sin respuesta.';
+        updateMessage(loadingId, reply);
+        chatHistory.push({ role: 'assistant', content: reply });
+      } catch {
+        updateMessage(loadingId, '❌ No se pudo obtener respuesta. Intentá de nuevo.');
+      }
+    }
+
+    let msgCount = 0;
+    function appendMessage(role, text) {
+      const id = `diag-msg-${++msgCount}`;
+      const msgs = document.getElementById('diag-chat-messages');
+      const div = document.createElement('div');
+      div.id = id;
+      div.className = `diag-chat-msg diag-chat-msg-${role}`;
+      div.textContent = text;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+      return id;
+    }
+
+    function updateMessage(id, text) {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = text; }
+    }
+  }
+
+  function buildDiagContext(data, plant) {
+    if (!data) return '';
+    const parts = [`Problema principal: ${data.problema_principal || '—'}`];
+    if (data.hipotesis?.length) {
+      parts.push('Hipótesis: ' + data.hipotesis.map(h => `${h.causa} (${h.ranking})`).join(', '));
+    }
+    if (data.urgencia) parts.push(`Urgencia: ${data.urgencia}`);
+    return parts.join('. ');
   }
 
   // ── Utils ─────────────────────────────────────────────────────────────────

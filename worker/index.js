@@ -38,10 +38,11 @@ export default {
     if (!groqKey) return err('GROQ_API_KEY no configurado', 500);
 
     const { type } = body;
-    const VALID = ['genetics_info','stage_durations','activity_suggestions','plant_diagnosis'];
+    const VALID = ['genetics_info','stage_durations','activity_suggestions','plant_diagnosis','chat_followup'];
     if (!VALID.includes(type)) return err(`Tipo desconocido: ${type}`, 400);
 
     if (type === 'plant_diagnosis') return await diagnosePlant(body, groqKey);
+    if (type === 'chat_followup')   return await chatFollowup(body, groqKey);
     return await textQuery(type, body, groqKey);
   }
 };
@@ -101,6 +102,39 @@ Respondé SOLO con JSON válido, sin markdown, sin texto extra:
   }
 
   return ok(parsed);
+}
+
+// ── Chat de seguimiento ───────────────────────────────────────────────────────
+
+async function chatFollowup(body, groqKey) {
+  const { messages, diagnosis_context, plant_context } = body;
+  if (!messages || !messages.length) return err('messages requerido', 400);
+
+  const sys = `Sos un experto agrónomo especializado en cannabis que está ayudando a un cultivador.
+${diagnosis_context ? `Contexto del diagnóstico previo:\n${diagnosis_context}\n` : ''}
+${plant_context ? `Información de la planta:\n${plant_context}\n` : ''}
+Respondés en español argentino, de forma clara, práctica y directa. Sos amigable pero conciso.
+Solo respondés preguntas relacionadas con el cultivo de cannabis, cuidado de plantas, deficiencias, plagas, técnicas de cultivo y temas relacionados.`;
+
+  let res;
+  try {
+    res = await timeout(fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [{ role: 'system', content: sys }, ...messages],
+        temperature: 0.5,
+        max_tokens: 800,
+      }),
+    }), 15000);
+  } catch { return err('Tiempo agotado', 504); }
+
+  if (!res.ok) { console.error('Chat error:', await res.text()); return err('Error en la IA', 502); }
+
+  const data = await res.json();
+  const reply = data?.choices?.[0]?.message?.content || 'Sin respuesta.';
+  return ok({ reply });
 }
 
 // ── Consultas de texto ────────────────────────────────────────────────────────
