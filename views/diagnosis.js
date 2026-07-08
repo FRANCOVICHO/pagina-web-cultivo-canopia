@@ -285,7 +285,7 @@
       return;
     }
 
-    const stages = window.StageCalc ? window.StageCalc.calcStages(plant) : null;
+    const stages = (window.StageCalc && plant && plant.start_date) ? window.StageCalc.calcStages(plant) : null;
     const stage  = stages ? window.StageCalc.getCurrentStage(stages) : null;
 
     try {
@@ -295,8 +295,8 @@
         body: JSON.stringify({
           type: 'plant_diagnosis',
           images_base64: validBase64s,
-          image_base64: validBase64s[0], // compatibilidad
-          genetics: plant.genetics || null,
+          image_base64: validBase64s[0],
+          genetics: (plant && plant.genetics) || null,
           stage: stage || null,
           extra_context: extraContext
         }),
@@ -509,7 +509,7 @@
             type: 'chat_followup',
             messages: chatHistory,
             diagnosis_context: diagContext,
-            plant_context: plant ? `Genética: ${plant.genetics || '—'}, Etapa: ${window.StageCalc ? window.StageCalc.getCurrentStage(window.StageCalc.calcStages(plant)) : '—'}` : null
+            plant_context: (plant && plant.genetics) ? `Genética: ${plant.genetics || '—'}, Etapa: ${window.StageCalc && plant.start_date ? window.StageCalc.getCurrentStage(window.StageCalc.calcStages(plant)) : '—'}` : null
           }),
           signal: AbortSignal.timeout(20000)
         });
