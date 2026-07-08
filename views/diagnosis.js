@@ -439,14 +439,15 @@
         </button>
       </div>`;
 
-    // Agregar chat de seguimiento debajo del resultado
-    setTimeout(() => renderChat(container, data, plant, token), 100);
+    // Chat de seguimiento — insertar directamente en el container del resultado
+    const chatWrapper = document.createElement('div');
+    container.appendChild(chatWrapper);
+    renderChat(chatWrapper, data, plant, token);
   }
 
   // ── Chat de seguimiento ───────────────────────────────────────────────────
 
-  function renderChat(resultContainer, diagData, plant, token) {
-    const chatEl = document.createElement('div');
+  function renderChat(chatEl, diagData, plant, token) {
     chatEl.className = 'diag-chat';
     chatEl.innerHTML = `
       <div class="diag-chat-header">
@@ -459,7 +460,6 @@
         <button class="btn-green btn-sm" id="diag-chat-send">Enviar</button>
       </div>
     `;
-    resultContainer.appendChild(chatEl);
 
     const chatHistory = [];
     const diagContext = buildDiagContext(diagData, plant);
@@ -478,8 +478,7 @@
     ).join('');
     chatEl.querySelector('.diag-chat-header').insertAdjacentElement('afterend', sugsEl);
 
-    sugsEl.querySelectorAll('.diag-sug-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+    sugsEl.querySelectorAll('.diag-sug-btn').forEach(btn => {      btn.addEventListener('click', () => {
         document.getElementById('diag-chat-input').value = btn.textContent;
         sendMessage();
       });
