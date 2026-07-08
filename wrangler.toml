@@ -1,4 +1,4 @@
-name = "canopia-ai-worker"
+name = "pagina-web-cultivo-canopia"
 main = "worker/index.js"
 compatibility_date = "2024-01-01"
 
